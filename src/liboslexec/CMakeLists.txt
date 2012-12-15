@@ -1,10 +1,5 @@
 SET ( liboslexec_srcs
           shadingsys.cpp closure.cpp
-          bsdf.cpp bsdf_diffuse.cpp bsdf_microfacet.cpp bsdf_phong.cpp
-          bsdf_westin.cpp bsdf_ashikhmin_velvet.cpp
-          bsdf_cloth_fncs.cpp bsdf_cloth.cpp bsdf_cloth_specular.cpp
-          bsdf_reflection.cpp bsdf_refraction.cpp bsdf_transparent.cpp bsdf_ward.cpp
-          bssrdf.cpp bsdf_hair.cpp bsdf_fakefur.cpp
           emissive.cpp background.cpp debug.cpp dictionary.cpp
           vol_subsurface.cpp
           context.cpp gabornoise.cpp instance.cpp 
@@ -13,10 +8,16 @@ SET ( liboslexec_srcs
           opmessage.cpp opnoise.cpp 
           opspline.cpp opstring.cpp
           oslexec.cpp osoreader.cpp
-          pointcloud.cpp rendservices.cpp runtimeoptimize.cpp typespec.cpp
+          pointcloud.cpp rendservices.cpp 
+          constfold.cpp runtimeoptimize.cpp typespec.cpp
           lpexp.cpp lpeparse.cpp automata.cpp accum.cpp
           opclosure.cpp builtin_closures.cpp
           llvm_gen.cpp llvm_instance.cpp llvm_util.cpp
+          bsdf.cpp bsdf_diffuse.cpp bsdf_microfacet.cpp bsdf_phong.cpp
+          bsdf_westin.cpp bsdf_ashikhmin_velvet.cpp
+          bsdf_cloth_fncs.cpp bsdf_cloth.cpp bsdf_cloth_specular.cpp
+          bsdf_reflection.cpp bsdf_refraction.cpp bsdf_transparent.cpp bsdf_ward.cpp
+          bssrdf.cpp bsdf_hair.cpp bsdf_fakefur.cpp
           ../liboslcomp/ast.cpp ../liboslcomp/codegen.cpp
           ../liboslcomp/oslcomp.cpp ../liboslcomp/symtab.cpp
           ../liboslcomp/typecheck.cpp

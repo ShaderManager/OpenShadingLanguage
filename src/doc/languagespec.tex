@@ -63,7 +63,7 @@ Editor: Larry Gritz \\
 \emph{lg@imageworks.com}
  \bigskip \\
 }
-\date{{\large Date: 21 Sep, 2012 \\
+\date{{\large Date: 13 Dec, 2012 \\
 %(with corrections, 22 Feb, 2012)
 }}
 
@@ -1957,6 +1957,18 @@ following example:
     }
 \end{code}
 
+It is allowed in OSL to copy an entire array at once using the {\cf =}
+operator, provided that the arrays contain elements of the same type
+and that the destination array is at least as long as the source
+array.  For example:
+
+\begin{code}
+    float array[4], anotherarray[4];
+    ...
+    anotherarray = array;
+\end{code}
+
+
 \section{Structures}
 \label{sec:types:struct}
 \indexapi{struct} \index{types!structures} \index{structures|see{{\cf struct}}}
@@ -3469,7 +3481,6 @@ function.
 \apiitem{\emph{type} {\ce spline} (string basis, float x, \emph{type} $\mathtt{y}_0$, \emph{type} $\mathtt{y}_1$, ... \emph{type} $\mathtt{y}_{n-1}$)\\
 \emph{type} {\ce spline} (string basis, float x, \emph{type} y[]) \\
 \emph{type} {\ce spline} (string basis, float x, int nknots, \emph{type} y[])}
-
 \indexapi{spline()}
 
 As $x$ varies from 0 to 1, {\cf spline} returns the value of a cubic
@@ -3484,13 +3495,15 @@ each component will be interpolated separately.
 
 The type of interpolation is specified by the \emph{basis} name,
 \emph{basis} parameter, which may be any of: \qkw{catmull-rom},
-\qkw{bezier}, \qkw{bspline}, \qkw{hermite}, or \qkw{linear}.  Some basis
+\qkw{bezier}, \qkw{bspline}, \qkw{hermite}, \qkw{linear}, or 
+\qkw{constant}. Some basis
 types require particular numbers of knot values -- Bezier splines
 require $4n+3$ values, Hermite splines require $4n+2$ values,
 Catmull-Rom and linear splines may use any number of values $n\ge 4$.
-To maintain consistency with the other spline types, linear splines will
-ignore the first and last data value, interpolating piecewise-linearly
-between $y_1$ and $y_{n-2}$.
+To maintain consistency with the other spline types, \qkw{linear} splines will
+ignore the first and last data value; interpolating piecewise-linearly
+between $y_1$ and $y_{n-2}$, and \qkw{constant} splines ignore the first
+and the two last data values.
 \apiend
 
 \apiitem{float {\ce splineinverse} (string basis, float v, float $\mathtt{y}_0$, ... float $\mathtt{y}_{n-1}$)\\
@@ -4147,6 +4160,26 @@ in the following example:
                                "temperature", temp);
 \end{code}
 \apiend
+
+
+
+\apiitem{int {\ce pointcloud_write} (string ptcname, point pos, \\
+\bigspc\bigspc  string attr1, \emph{type} data1, ...)}
+\indexapi{pointcloud_write}
+
+Save the tuple (\emph{attr1}, \emph{data1}, ..., \emph{attrN},
+\emph{dataN}) at position \emph{pos} in a named point cloud.  The point
+cloud will be saved when the frame is finished computing.  Return 1 if
+successful, 0 for failure, which could include the attributes not
+matching names or types at different positions in the point cloud.
+
+Example:
+\begin{code}
+      color C = ...;
+      int ok = pointcloud_write ("particles.ptc", P, "normal", N, "color", C);
+\end{code}
+\apiend
+
 
 
 
@@ -4910,6 +4943,15 @@ OSL, but is expected to include at a minimum \qkw{camera},
 \qkw{shadow}, \qkw{diffuse}, \qkw{glossy}, \qkw{reflection},
 \qkw{refraction}.  They are not necessarily mutually exclusive, with the
 exception that camera rays should be of class \qkw{camera} and no other.
+\apiend
+
+\apiitem{int {\ce isconnected} (\emph{type} parameter)}
+\indexapi{isconnected()}
+Returns {\cf 1} if the argument is a shader parameter and is connected
+to an earlier layer in the shader group, otherwise returns {\cf 0}.
+Remember that function arguments in OSL are always pass-by-reference,
+so {\cf isconnected()} applied to a function parameter will depend on
+what was passed in as the actual parameter.
 \apiend
 
 

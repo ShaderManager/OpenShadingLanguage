@@ -42,7 +42,11 @@ namespace pvt {
 llvm::Type *
 RuntimeOptimizer::llvm_type_union(const std::vector<llvm::Type *> &types)
 {
+#if OSL_LLVM_VERSION >= 32
+    llvm::DataLayout target(llvm_module());
+#else
     llvm::TargetData target(llvm_module());
+#endif
     size_t max_size = 0;
     size_t max_align = 1;
     for (size_t i = 0; i < types.size(); ++i) {
@@ -737,7 +741,9 @@ RuntimeOptimizer::llvm_call_function (const char *name,
         else
             valargs[i] = llvm_load_value (s);
     }
-    return llvm_call_function (name, &valargs[0], (int)valargs.size());
+    return llvm_call_function (name,
+                               (valargs.size())? &valargs[0]: NULL,
+                               (int)valargs.size());
 }
 
 

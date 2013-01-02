@@ -32,6 +32,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <boost/foreach.hpp>
 
+#include <OpenImageIO/sysutil.h>
 #include <OpenImageIO/timer.h>
 #include <OpenImageIO/thread.h>
 
@@ -100,7 +101,6 @@ RuntimeOptimizer::RuntimeOptimizer (ShadingSystemImpl &shadingsys,
       m_opt_coalesce_temps(shadingsys.m_opt_coalesce_temps),
       m_opt_assign(shadingsys.m_opt_assign),
       m_opt_mix(shadingsys.m_opt_mix),
-      m_opt_merge_instances(shadingsys.m_opt_merge_instances),
       m_next_newconst(0), m_next_newtemp(0),
       m_stat_opt_locking_time(0), m_stat_specialization_time(0),
       m_stat_total_llvm_time(0), m_stat_llvm_setup_time(0),
@@ -165,7 +165,6 @@ RuntimeOptimizer::set_debug ()
             m_opt_coalesce_temps = true;
             m_opt_assign = true;
             m_opt_mix = true;
-            m_opt_merge_instances = true;
         }
     }
     // if user said to only debug one layer, turn off debug if not it
@@ -493,8 +492,10 @@ RuntimeOptimizer::insert_code (int opnum, ustring opname,
                                const std::vector<int> &args_to_add,
                                bool recompute_rw_ranges, int relation)
 {
-    insert_code (opnum, opname, (const int *)&args_to_add[0],
-                 (const int *)&args_to_add[args_to_add.size()],
+    const int *argsbegin = (args_to_add.size())? &args_to_add[0]: NULL;
+    const int *argsend = argsbegin + args_to_add.size();
+
+    insert_code (opnum, opname, argsbegin, argsend,
                  recompute_rw_ranges, relation);
 }
 
@@ -1685,13 +1686,25 @@ RuntimeOptimizer::optimize_instance ()
         int lastblock = -1;
         size_t num_ops = inst()->ops().size();
         int skipops = 0;   // extra inserted ops to skip over
-        for (int opnum = 0;  opnum < (int)num_ops;  opnum += 1+skipops) {
-            skipops = 0;
+        for (int opnum = 0;  opnum < (int)num_ops;  opnum += 1) {
             // Before getting a reference to this op, be sure that a space
             // is reserved at the end in case a folding routine inserts an
             // op.  That ensures that the reference won't be invalid.
             inst()->ops().reserve (num_ops+1);
             Opcode &op (inst()->ops()[opnum]);
+
+            if (skipops) {
+                // If a previous optimization inserted ops and told us
+                // to skip over the new ones, we still need to unalias
+                // any symbols written by this op, but otherwise skip
+                // all subsequent optimizations until we run down the
+                // skipops counter.
+                block_unalias_written_args (op);
+                ASSERT (lastblock == m_bblockids[opnum] &&
+                        "this should not be a new basic block");
+                --skipops;
+                continue;   // Move along to the next op, no opimization here
+            }
 
             // Things to do if we've just moved to a new basic block
             if (lastblock != m_bblockids[opnum]) {
@@ -1741,9 +1754,7 @@ RuntimeOptimizer::optimize_instance ()
 
             // Clear local block aliases for any args that were written
             // by this op
-            for (int i = 0, e = op.nargs();  i < e;  ++i)
-                if (op.argwrite(i))
-                    block_unalias (inst()->arg(op.firstarg()+i));
+            block_unalias_written_args (op);
 
             // Get rid of an 'if' if it contains no statements to execute
             if (optimize() >= 2 && op.opname() == u_if &&
@@ -1837,7 +1848,6 @@ RuntimeOptimizer::optimize_instance ()
             // Peephole optimization involving pair of instructions
             if (optimize() >= 2 && m_opt_peephole)
                 changed += peephole2 (opnum);
-
         }
 
         // Now that we've rewritten the code, we need to re-track the
@@ -1938,6 +1948,8 @@ RuntimeOptimizer::track_variable_lifetimes ()
 }
 
 
+// This has O(n^2) memory usage, so only for debugging
+//#define DEBUG_SYMBOL_DEPENDENCIES
 
 // Add to the dependency map that "symbol A depends on symbol B".
 void
@@ -1946,11 +1958,13 @@ RuntimeOptimizer::add_dependency (SymDependency &dmap, int A, int B)
     ASSERT (A < (int)inst()->symbols().size());
     ASSERT (B < (int)inst()->symbols().size());
     dmap[A].insert (B);
+
+#ifdef DEBUG_SYMBOL_DEPENDENCIES
     // Unification -- make all of B's dependencies be dependencies of A.
     BOOST_FOREACH (int r, dmap[B])
         dmap[A].insert (r);
+#endif
 }
-
 
 
 void
@@ -1975,6 +1989,25 @@ RuntimeOptimizer::syms_used_in_op (Opcode &op, std::vector<int> &rsyms,
 // Fake symbol index for "derivatives" entry in dependency map.
 static const int DerivSym = -1;
 
+
+// Recursively mark symbols that have derivatives from dependency map
+void
+RuntimeOptimizer::mark_symbol_derivatives (SymDependency &symdeps, SymIntSet &visited, int d)
+{
+    BOOST_FOREACH (int r, symdeps[d]) {
+        if (visited.find(r) == visited.end()) {
+            visited.insert(r);
+            
+            Symbol *s = inst()->symbol(r);
+
+            if (! s->typespec().is_closure_based() && 
+                    s->typespec().elementtype().is_floatbased())
+                s->has_derivs (true);
+
+            mark_symbol_derivatives(symdeps, visited, r);
+        }
+    }
+}
 
 
 /// Run through all the ops, for each one marking its 'written'
@@ -2078,12 +2111,8 @@ RuntimeOptimizer::track_variable_dependencies ()
     }
 
     // Mark all symbols needing derivatives as such
-    BOOST_FOREACH (int d, symdeps[DerivSym]) {
-        Symbol *s = inst()->symbol(d);
-        if (! s->typespec().is_closure_based() && 
-                s->typespec().elementtype().is_floatbased())
-            s->has_derivs (true);
-    }
+    SymIntSet visited;
+    mark_symbol_derivatives (symdeps, visited, DerivSym);
 
     // Only some globals are allowed to have derivatives
     BOOST_FOREACH (Symbol &s, inst()->symbols()) {
@@ -2096,7 +2125,7 @@ RuntimeOptimizer::track_variable_dependencies ()
             s.has_derivs (false);
     }
 
-#if 0
+#ifdef DEBUG_SYMBOL_DEPENDENCIES
     // Helpful for debugging
 
     std::cerr << "track_variable_dependencies\n";

@@ -118,7 +118,9 @@ using OIIO::erfcf;
 using OIIO::log2f;
 using OIIO::logbf;
 using OIIO::exp2f;
-#else
+#endif
+
+#ifndef _MSC_VER
 using OIIO::isnan;
 using OIIO::isfinite;
 #endif
@@ -1102,6 +1104,18 @@ osl_endswith_iss (const char *s, const char *substr)
         return strncmp (s+USTR(s).length()-len, substr, len) == 0;
 }
 
+OSL_SHADEOP int
+osl_strtoi_is (const char *str)
+{
+    return strtol(str, NULL, 10);
+}
+
+OSL_SHADEOP float
+osl_strtof_fs (const char *str)
+{
+    return (float)strtod(str, NULL);
+}
+
 OSL_SHADEOP const char *
 osl_substr_ssii (const char *s, int start, int length)
 {
@@ -1759,3 +1773,16 @@ osl_naninf_check (int ncomps, const void *vals_, int has_derivs,
             return;
         }
 }
+
+
+#ifdef OSL_LLVM_NO_BITCODE
+OSL_NAMESPACE_ENTER
+namespace pvt {
+
+// This symbol is strictly to force linkage of this file when building
+// static library.
+int llvm_ops_cpp_dummy = 1;
+
+} // end namespace pvt
+OSL_NAMESPACE_EXIT
+#endif

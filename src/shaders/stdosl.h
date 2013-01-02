@@ -173,7 +173,15 @@ vector cross (vector a, vector b) BUILTIN;
 float dot (vector a, vector b) BUILTIN;
 float length (vector v) BUILTIN;
 float distance (point a, point b) BUILTIN;
-float distance (point a, point b, point q) BUILTIN;
+float distance (point a, point b, point q)
+{
+    vector d = b - a;
+    float dd = dot(d, d);
+    if(dd == 0.0)
+        return distance(q, a);
+    float t = dot(q - a, d)/dd;
+    return distance(q, a + clamp(t, 0.0, 1.0)*d);
+}
 normal normalize (normal v) BUILTIN;
 vector normalize (vector v) BUILTIN;
 vector faceforward (vector N, vector I, vector Nref) BUILTIN;
@@ -422,6 +430,8 @@ int startswith (string s, string prefix) BUILTIN;
 int endswith (string s, string suffix) BUILTIN;
 string substr (string s, int start, int len) BUILTIN;
 string substr (string s, int start) { return substr (s, start, strlen(s)); }
+float strtof (string str) BUILTIN;
+int strtoi (string str) BUILTIN;
 
 // Define concat in terms of shorter concat
 string concat (string a, string b, string c) {

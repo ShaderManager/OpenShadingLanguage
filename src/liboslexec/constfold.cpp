@@ -28,8 +28,11 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <vector>
 #include <cmath>
+#include <cstdlib>
 
 #include <boost/regex.hpp>
+
+#include <OpenImageIO/sysutil.h>
 
 #include "oslexec_pvt.h"
 #include "runtimeoptimize.h"
@@ -841,6 +844,81 @@ DECLFOLDER(constfold_endswith)
 
 
 
+DECLFOLDER(constfold_strtoi)
+{
+    // Try to turn R=strtoi(s) into R=C
+    Opcode &op (rop.inst()->ops()[opnum]);
+    Symbol &S (*rop.inst()->argsymbol(op.firstarg()+1));
+    if (S.is_constant()) {
+        ASSERT (S.typespec().is_string());
+        ustring s = *(ustring *)S.data();
+        int cind = rop.add_constant ((int) strtol(s.c_str(), NULL, 10));
+        rop.turn_into_assign (op, cind, "const fold");
+        return 1;
+    }
+    return 0;
+}
+
+
+
+DECLFOLDER(constfold_strtof)
+{
+    // Try to turn R=strtof(s) into R=C
+    Opcode &op (rop.inst()->ops()[opnum]);
+    Symbol &S (*rop.inst()->argsymbol(op.firstarg()+1));
+    if (S.is_constant()) {
+        ASSERT (S.typespec().is_string());
+        ustring s = *(ustring *)S.data();
+        int cind = rop.add_constant ((float) strtod(s.c_str(), NULL));
+        rop.turn_into_assign (op, cind, "const fold");
+        return 1;
+    }
+    return 0;
+}
+
+
+
+DECLFOLDER(constfold_split)
+{
+    Opcode &op (rop.inst()->ops()[opnum]);
+    // Symbol &R (*rop.inst()->argsymbol(op.firstarg()+0));
+    Symbol &Str (*rop.inst()->argsymbol(op.firstarg()+1));
+    Symbol &Results (*rop.inst()->argsymbol(op.firstarg()+2));
+    Symbol &Sep (*rop.inst()->argsymbol(op.firstarg()+3));
+    Symbol &Maxsplit (*rop.inst()->argsymbol(op.firstarg()+4));
+    if (Str.is_constant() && Sep.is_constant() && Maxsplit.is_constant()) {
+        // The split string, separator string, and maxsplit are all constants.
+        // Compute the results with Strutil::split.
+        int resultslen = Results.typespec().arraylength();
+        int maxsplit = Imath::clamp (*(int *)Maxsplit.data(), 0, resultslen);
+        std::vector<std::string> splits;
+        Strutil::split ((*(ustring *)Str.data()).string(), splits,
+                        (*(ustring *)Sep.data()).string(), maxsplit);
+        int n = std::min (maxsplit, (int)splits.size());
+        // Temporarily stash the index of the symbol holding results
+        int resultsarg = rop.inst()->args()[op.firstarg()+2];
+        // Turn the 'split' into a straight assignment of the return value...
+        rop.turn_into_assign (op, rop.add_constant(n));
+        // Create a constant array holding the split results
+        std::vector<ustring> usplits (resultslen);
+        for (int i = 0;  i < n;  ++i)
+            usplits[i] = ustring(splits[i]);
+        int cind = rop.add_constant (TypeDesc(TypeDesc::STRING,resultslen),
+                                     &usplits[0]);
+        // And insert an instruction copying our constant array to the
+        // user's results array.
+        std::vector<int> args;
+        args.push_back (resultsarg);
+        args.push_back (cind);
+        rop.insert_code (opnum, u_assign, args, true, 1 /* relation */);
+        return 1;
+    }
+
+    return 0;
+}
+
+
+
 DECLFOLDER(constfold_concat)
 {
     // Try to turn R=concat(s,...) into R=C
@@ -1409,7 +1487,7 @@ DECLFOLDER(constfold_getmatrix)
         std::vector<int> args_to_add;
         args_to_add.push_back (resultarg);
         args_to_add.push_back (rop.add_constant (TypeDesc::TypeInt, &one));
-        rop.insert_code (opnum, u_assign, args_to_add, true);
+        rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
         Opcode &newop (rop.inst()->ops()[opnum]);
         newop.argwriteonly (0);
         newop.argread (1, true);
@@ -1497,6 +1575,99 @@ DECLFOLDER(constfold_getmessage)
 
 
 
+DECLFOLDER(constfold_getattribute)
+{
+    if (! rop.shadingsys().fold_getattribute())
+        return 0;
+
+    // getattribute() has eight "flavors":
+    //   * getattribute (attribute_name, value)
+    //   * getattribute (attribute_name, value[])
+    //   * getattribute (attribute_name, index, value)
+    //   * getattribute (attribute_name, index, value[])
+    //   * getattribute (object, attribute_name, value)
+    //   * getattribute (object, attribute_name, value[])
+    //   * getattribute (object, attribute_name, index, value)
+    //   * getattribute (object, attribute_name, index, value[])
+    Opcode &op (rop.inst()->ops()[opnum]);
+    int nargs = op.nargs();
+    DASSERT (nargs >= 3 && nargs <= 5);
+    bool array_lookup = rop.opargsym(op,nargs-2)->typespec().is_int();
+    bool object_lookup = rop.opargsym(op,2)->typespec().is_string() && nargs >= 4;
+    int object_slot = (int)object_lookup;
+    int attrib_slot = object_slot + 1;
+    int index_slot = nargs - 2;
+    int dest_slot = nargs - 1;
+
+//    Symbol& Result      = *rop.opargsym (op, 0);
+    Symbol& ObjectName  = *rop.opargsym (op, object_slot); // only valid if object_slot is true
+    Symbol& Attribute   = *rop.opargsym (op, attrib_slot);
+    Symbol& Index       = *rop.opargsym (op, index_slot);  // only valid if array_lookup is true
+    Symbol& Destination = *rop.opargsym (op, dest_slot);
+
+    if (! Attribute.is_constant() ||
+        ! ObjectName.is_constant() ||
+        (array_lookup && ! Index.is_constant()))
+        return 0;   // Non-constant things prevent a fold
+    if (Destination.typespec().is_array())
+        return 0;   // Punt on arrays for now
+
+    // If the object name is not supplied, it implies that we are
+    // supposed to search the shaded object first, then if that fails,
+    // the scene-wide namespace.  We can't do that yet, have to wait
+    // until shade time.
+    ustring obj_name;
+    if (object_lookup)
+        obj_name = *(const ustring *)ObjectName.data();
+    if (! obj_name)
+        return 0;
+
+    const size_t maxbufsize = 1024;
+    char buf[maxbufsize];
+    TypeDesc attr_type = Destination.typespec().simpletype();
+    if (attr_type.size() > maxbufsize)
+        return 0;  // Don't constant fold humongous things
+    ustring attr_name = *(const ustring *)Attribute.data();
+    bool found = array_lookup
+        ? rop.renderer()->get_array_attribute (NULL, false,
+                                               obj_name, attr_type, attr_name,
+                                               *(const int *)Index.data(), buf)
+        : rop.renderer()->get_attribute (NULL, false,
+                                         obj_name, attr_type, attr_name,
+                                         buf);
+    if (found) {
+        // Now we turn the existing getattribute op into this for success:
+        //       assign result 1
+        //       assign data [retrieved values]
+        // but if it fails, don't change anything, because we want it to
+        // issue errors at runtime.
+
+        // Make the data destination be the first argument
+        int oldresultarg = rop.inst()->args()[op.firstarg()+0];
+        int dataarg = rop.inst()->args()[op.firstarg()+dest_slot];
+        rop.inst()->args()[op.firstarg()+0] = dataarg;
+        // Now turn it into an assignment
+        int cind = rop.add_constant (attr_type, &buf);
+        rop.turn_into_assign (op, cind, "const fold");
+        // Now insert a new instruction that assigns 1 to the
+        // original return result of getattribute.
+        int one = 1;
+        std::vector<int> args_to_add;
+        args_to_add.push_back (oldresultarg);
+        args_to_add.push_back (rop.add_constant (TypeDesc::TypeInt, &one));
+        rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
+        Opcode &newop (rop.inst()->ops()[opnum]);
+        newop.argwriteonly (0);
+        newop.argread (1, true);
+        newop.argwrite (1, false);
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+
+
 DECLFOLDER(constfold_gettextureinfo)
 {
     Opcode &op (rop.inst()->ops()[opnum]);
@@ -1508,7 +1679,7 @@ DECLFOLDER(constfold_gettextureinfo)
             Dataname.typespec().is_string());
 
     if (Filename.is_constant() && Dataname.is_constant() &&
-          ! Data.typespec().is_array()) {
+            ! Data.typespec().is_array() /* N.B. we punt on arrays */) {
         ustring filename = *(ustring *)Filename.data();
         ustring dataname = *(ustring *)Dataname.data();
         TypeDesc t = Data.typespec().simpletype();
@@ -1522,29 +1693,24 @@ DECLFOLDER(constfold_gettextureinfo)
         // into this for success:
         //       assign result 1
         //       assign data [retrieved values]
-        // or, if it failed:
-        //       assign result 0
+        // but if it fails, don't change anything, because we want it to
+        // issue errors at runtime.
         if (result) {
-            int resultarg = rop.inst()->args()[op.firstarg()+0];
+            int oldresultarg = rop.inst()->args()[op.firstarg()+0];
             int dataarg = rop.inst()->args()[op.firstarg()+3];
-            // If not an array, turn the gettextureinfo into an assignment
-            // to data.  (Punt on arrays -- just let the gettextureinfo
-            // happen as before.)
-            if (! t.arraylen) {
-                // Make data the first argument
-                rop.inst()->args()[op.firstarg()+0] = dataarg;
-                // Now turn it into an assignment
-                int cind = rop.add_constant (Data.typespec(), mydata);
-                rop.turn_into_assign (op, cind, "const fold");
-            }
+            // Make data the first argument
+            rop.inst()->args()[op.firstarg()+0] = dataarg;
+            // Now turn it into an assignment
+            int cind = rop.add_constant (Data.typespec(), mydata);
+            rop.turn_into_assign (op, cind, "const fold");
 
             // Now insert a new instruction that assigns 1 to the
             // original return result of gettextureinfo.
             int one = 1;
             std::vector<int> args_to_add;
-            args_to_add.push_back (resultarg);
+            args_to_add.push_back (oldresultarg);
             args_to_add.push_back (rop.add_constant (TypeDesc::TypeInt, &one));
-            rop.insert_code (opnum, u_assign, args_to_add, true);
+            rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
             Opcode &newop (rop.inst()->ops()[opnum]);
             newop.argwriteonly (0);
             newop.argread (1, true);
@@ -1805,7 +1971,7 @@ DECLFOLDER(constfold_pointcloud_search)
         std::vector<int> args_to_add;
         args_to_add.push_back (value_args[i]);
         args_to_add.push_back (const_array_sym);
-        rop.insert_code (opnum, u_assign, args_to_add, true);
+        rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
     }
 
     // Query results all copied.  The only thing left to do is to assign
@@ -1813,7 +1979,7 @@ DECLFOLDER(constfold_pointcloud_search)
     std::vector<int> args_to_add;
     args_to_add.push_back (result_sym);
     args_to_add.push_back (rop.add_constant (TypeDesc::TypeInt, &count));
-    rop.insert_code (opnum, u_assign, args_to_add, true);
+    rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
     
     return 1;
 }
@@ -1869,7 +2035,7 @@ DECLFOLDER(constfold_pointcloud_get)
     std::vector<int> args_to_add;
     args_to_add.push_back (rop.oparg(op,5) /* Data symbol*/);
     args_to_add.push_back (const_array_sym);
-    rop.insert_code (opnum, u_assign, args_to_add, true);
+    rop.insert_code (opnum, u_assign, args_to_add, true, 1 /* relation */);
     return 1;
 }
 

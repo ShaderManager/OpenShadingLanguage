@@ -30,6 +30,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <cstddef> // FIXME: OIIO's timer.h depends on NULL being defined and should include this itself
 
 #include <OpenImageIO/timer.h>
+#include <OpenImageIO/sysutil.h>
 
 #include "llvm_headers.h"
 
@@ -116,6 +117,20 @@ namespace pvt {
 static ustring op_end("end");
 static ustring op_nop("nop");
 
+// Trickery to force linkage of files when building static libraries.
+extern int opclosure_cpp_dummy, opcolor_cpp_dummy;
+extern int opmessage_cpp_dummy, opnoise_cpp_dummy;
+extern int opspline_cpp_dummy, opstring_cpp_dummy;
+#ifdef OSL_LLVM_NO_BITCODE
+extern int llvm_ops_cpp_dummy;
+#endif
+int *force_osl_op_linkage[] = {
+    &opclosure_cpp_dummy, &opcolor_cpp_dummy, &opmessage_cpp_dummy,
+    &opnoise_cpp_dummy, &opspline_cpp_dummy,  &opstring_cpp_dummy,
+#ifdef OSL_LLVM_NO_BITCODE
+    &llvm_ops_cpp_dummy
+#endif
+};
 
 
 #define NOISE_IMPL(name)                        \
@@ -273,6 +288,7 @@ static const char *llvm_helper_function_table[] = {
     "osl_wavelength_color_vf", "xXXf",
     "osl_luminance_fv", "xXXX",
     "osl_luminance_dfdv", "xXXX",
+    "osl_split", "isXsii",
 
 #ifdef OSL_LLVM_NO_BITCODE
     "osl_assert_nonnull", "xXs",
@@ -355,6 +371,9 @@ static const char *llvm_helper_function_table[] = {
     "osl_transformn_vmv", "xXXX",
     "osl_transformn_dvmdv", "xXXX",
 
+    "osl_transform_triple", "iXXiXiXXi",
+    "osl_transform_triple_nonlinear", "iXXiXiXXi",
+
     "osl_mul_mm", "xXXX",
     "osl_mul_mf", "xXXf",
     "osl_mul_m_ff", "xXff",
@@ -397,6 +416,9 @@ static const char *llvm_helper_function_table[] = {
     "osl_texture_set_swrap", "xXs",
     "osl_texture_set_twrap", "xXs",
     "osl_texture_set_rwrap", "xXs",
+    "osl_texture_set_swrap_code", "xXi",
+    "osl_texture_set_twrap_code", "xXi",
+    "osl_texture_set_rwrap_code", "xXs",
     "osl_texture_set_sblur", "xXf",
     "osl_texture_set_tblur", "xXf",
     "osl_texture_set_rblur", "xXf",
@@ -435,6 +457,8 @@ static const char *llvm_helper_function_table[] = {
     "osl_raytype_name", "iXX",
     "osl_raytype_bit", "iXi",
     "osl_bind_interpolated_param", "iXXLiX",
+    "osl_range_check", "iiiXXi",
+    "osl_naninf_check", "xiXiXXiX",
 #endif // OSL_LLVM_NO_BITCODE
 
     NULL
@@ -1250,13 +1274,21 @@ RuntimeOptimizer::llvm_setup_optimization_passes ()
     //
     m_llvm_func_passes = new llvm::FunctionPassManager(llvm_module());
     llvm::FunctionPassManager &fpm (*m_llvm_func_passes);
+#if OSL_LLVM_VERSION >= 32
+    fpm.add (new llvm::DataLayout(llvm_module()));
+#else
     fpm.add (new llvm::TargetData(llvm_module()));
+#endif
 
     // Specify module-wide (interprocedural optimization) passes
     //
     m_llvm_passes = new llvm::PassManager;
     llvm::PassManager &passes (*m_llvm_passes);
+#if OSL_LLVM_VERSION >= 32
+    passes.add (new llvm::DataLayout(llvm_module()));
+#else
     passes.add (new llvm::TargetData(llvm_module()));
+#endif
 
     if (shadingsys().llvm_optimize() >= 1 && shadingsys().llvm_optimize() <= 3) {
         // For LLVM 3.0 and higher, llvm_optimize 1-3 means to use the

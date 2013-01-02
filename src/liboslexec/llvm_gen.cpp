@@ -1720,13 +1720,16 @@ LLVMGEN (llvm_gen_generic)
                                                      &(args[1]), op.nargs()-1);
             rop.llvm_store_value (r, Result);
         } else {
-            rop.llvm_call_function (name.c_str(), &(args[0]), op.nargs());
+            rop.llvm_call_function (name.c_str(),
+                                    (args.size())? &(args[0]): NULL, op.nargs());
         }
         rop.llvm_zero_derivs (Result);
     } else {
         // Cases with derivs
         ASSERT (Result.has_derivs() && any_deriv_args);
-        rop.llvm_call_function (name.c_str(), &(args[0]), op.nargs(), true);
+        rop.llvm_call_function (name.c_str(),
+                                (args.size())? &(args[0]): NULL, op.nargs(),
+                                true);
     }
     return true;
 }
@@ -2554,51 +2557,20 @@ LLVMGEN (llvm_gen_getattribute)
     //   * getattribute (object, attribute_name, index, value)
     //   * getattribute (object, attribute_name, index, value[])
     Opcode &op (rop.inst()->ops()[opnum]);
+    int nargs = op.nargs();
+    DASSERT (nargs >= 3 && nargs <= 5);
 
-    DASSERT (op.nargs() >= 3 && op.nargs() <= 5);
+    bool array_lookup = rop.opargsym(op,nargs-2)->typespec().is_int();
+    bool object_lookup = rop.opargsym(op,2)->typespec().is_string() && nargs >= 4;
+    int object_slot = (int)object_lookup;
+    int attrib_slot = object_slot + 1;
+    int index_slot = array_lookup ? nargs - 2 : 0;
 
-    bool object_lookup = false;
-    bool array_lookup  = false;
-
-    // slot indices when (nargs==3)
-    int result_slot = 0; // never changes
-    int attrib_slot = 1;
-    int object_slot = 0; // initially not used
-    int index_slot  = 0; // initially not used
-    int dest_slot   = 2;
-
-    // figure out which "flavor" of getattribute() to use
-    if (op.nargs() == 5) {
-        object_slot = 1;
-        attrib_slot = 2;
-        index_slot  = 3;
-        dest_slot   = 4;
-        array_lookup  = true;
-        object_lookup = true;
-    }
-    else if (op.nargs() == 4) {
-        if (rop.opargsym (op, 2)->typespec().is_int()) {
-            attrib_slot = 1;
-            index_slot  = 2;
-            dest_slot   = 3;
-            array_lookup = true;
-        }
-        else {
-            object_slot = 1;
-            attrib_slot = 2;
-            dest_slot   = 3;
-            object_lookup = true;
-        }
-    }
-
-    Symbol& Result      = *rop.opargsym (op, result_slot);
-    Symbol& ObjectName  = *rop.opargsym (op, object_slot); // might be aliased to Result
-    Symbol& Index       = *rop.opargsym (op, index_slot);  // might be aliased to Result
+    Symbol& Result      = *rop.opargsym (op, 0);
+    Symbol& ObjectName  = *rop.opargsym (op, object_slot); // only valid if object_slot is true
     Symbol& Attribute   = *rop.opargsym (op, attrib_slot);
-    Symbol& Destination = *rop.opargsym (op, dest_slot);
-
-    bool     dest_derivs    = Destination.has_derivs();
-
+    Symbol& Index       = *rop.opargsym (op, index_slot);  // only valid if array_lookup is true
+    Symbol& Destination = *rop.opargsym (op, nargs-1);
     DASSERT (!Result.typespec().is_closure_based() &&
              !ObjectName.typespec().is_closure_based() && 
              !Attribute.typespec().is_closure_based() &&
@@ -2612,7 +2584,7 @@ LLVMGEN (llvm_gen_getattribute)
 
     std::vector<llvm::Value *> args;
     args.push_back (rop.sg_void_ptr());
-    args.push_back (rop.llvm_constant ((int)dest_derivs));
+    args.push_back (rop.llvm_constant ((int)Destination.has_derivs()));
     args.push_back (object_lookup ? rop.llvm_load_value (ObjectName) :
                                     rop.llvm_constant (ustring()));
     args.push_back (rop.llvm_load_value (Attribute));
@@ -3315,6 +3287,43 @@ LLVMGEN (llvm_gen_dict_value)
     args[4] = rop.llvm_void_ptr (Value);
     llvm::Value *ret = rop.llvm_call_function ("osl_dict_value", &args[0], 5);
     rop.llvm_store_value (ret, Result);
+    return true;
+}
+
+
+
+LLVMGEN (llvm_gen_split)
+{
+    // int split (string str, output string result[], string sep, int maxsplit)
+    Opcode &op (rop.inst()->ops()[opnum]);
+    DASSERT (op.nargs() >= 3 && op.nargs() <= 5);
+    Symbol& R       = *rop.opargsym (op, 0);
+    Symbol& Str     = *rop.opargsym (op, 1);
+    Symbol& Results = *rop.opargsym (op, 2);
+    DASSERT (R.typespec().is_int() && Str.typespec().is_string() &&
+             Results.typespec().is_array() &&
+             Results.typespec().simpletype() == TypeDesc::TypeString);
+
+    llvm::Value *args[5];
+    args[0] = rop.llvm_load_value (Str);
+    args[1] = rop.llvm_void_ptr (Results);
+    if (op.nargs() >= 4) {
+        Symbol& Sep = *rop.opargsym (op, 3);
+        DASSERT (Sep.typespec().is_string());
+        args[2] = rop.llvm_load_value (Sep);
+    } else {
+        args[2] = rop.llvm_constant ("");
+    }
+    if (op.nargs() >= 5) {
+        Symbol& Maxsplit = *rop.opargsym (op, 4);
+        DASSERT (Maxsplit.typespec().is_int());
+        args[3] = rop.llvm_load_value (Maxsplit);
+    } else {
+        args[3] = rop.llvm_constant (Results.typespec().arraylength());
+    }
+    args[4] = rop.llvm_constant (Results.typespec().arraylength());
+    llvm::Value *ret = rop.llvm_call_function ("osl_split", &args[0], 5);
+    rop.llvm_store_value (ret, R);
     return true;
 }
 

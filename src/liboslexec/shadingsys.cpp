@@ -106,25 +106,31 @@ bool
 ShadingSystem::convert_value (void *dst, TypeDesc dsttype,
                               const void *src, TypeDesc srctype)
 {
-    // Just copy equivalent types
-    if (equivalent (dsttype, srctype)) {
-        if (dst && src) {
-            size_t size = dsttype.size();
-            if (size == sizeof(float))    // common case: float/int copy
-                *(float *)dst = *(const float *)src;
-            else
-                memcpy (dst, src, dsttype.size());  // otherwise, memcpy
+    int tmp_int;
+    if (srctype == TypeDesc::UINT8) {
+        // uint8 src: Up-convert the source to int
+        if (src) {
+            tmp_int = *(const unsigned char *)src;
+            src = &tmp_int;
         }
-        return true;
+        srctype = TypeDesc::TypeInt;
     }
 
+    float tmp_float;
     if (srctype == TypeDesc::TypeInt && dsttype.basetype == TypeDesc::FLOAT) {
-        if (dst && src) {
-            // int -> any-float-based ... up-convert to float and recurse
-            float f = (float) (*(const int *)src);
-            return convert_value (dst, dsttype, &f, TypeDesc::TypeFloat);
+        // int -> float-based : up-convert the source to float
+        if (src) {
+            tmp_float = (float) (*(const int *)src);
+            src = &tmp_float;
         }
-        return convert_value (NULL, dsttype, NULL, TypeDesc::TypeFloat);
+        srctype = TypeDesc::TypeFloat;
+    }
+
+    // Just copy equivalent types
+    if (equivalent (dsttype, srctype)) {
+        if (dst && src)
+            memcpy (dst, src, dsttype.size());
+        return true;
     }
 
     if (srctype == TypeDesc::TypeFloat) {
@@ -258,6 +264,7 @@ ShadingSystemImpl::ShadingSystemImpl (RendererServices *renderer,
       m_opt_elide_unconnected_outputs(true),
       m_opt_peephole(true), m_opt_coalesce_temps(true),
       m_opt_assign(true), m_opt_mix(true), m_opt_merge_instances(true),
+      m_opt_fold_getattribute(true),
       m_optimize_nondebug(false),
       m_llvm_optimize(0),
       m_debug(false), m_llvm_debug(false),
@@ -354,13 +361,13 @@ ShadingSystemImpl::ShadingSystemImpl (RendererServices *renderer,
 
 
 
-void
-ShadingSystemImpl::setup_op_descriptors ()
+static void
+shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_descriptor)
 {
 #define OP(name,ll,f,simp)                                               \
     extern bool llvm_gen_##ll (RuntimeOptimizer &rop, int opnum);        \
     extern int  constfold_##f (RuntimeOptimizer &rop, int opnum);        \
-    m_op_descriptor[ustring(#name)] = OpDescriptor(#name, llvm_gen_##ll, \
+    op_descriptor[ustring(#name)] = OpDescriptor(#name, llvm_gen_##ll,   \
                                                    constfold_##f, simp);
 
     // name          llvmgen              folder         simple
@@ -426,7 +433,7 @@ ShadingSystemImpl::setup_op_descriptors ()
     OP (format,      printf,              format,        true);
     OP (functioncall, functioncall,       functioncall,  false);
     OP (ge,          compare_op,          ge,            true);
-    OP (getattribute, getattribute,       none,          false);
+    OP (getattribute, getattribute,       getattribute,  false);
     OP (getmatrix,   getmatrix,           getmatrix,     false);
     OP (getmessage,  getmessage,          getmessage,    false);
     OP (gettextureinfo, gettextureinfo,   gettextureinfo,false);
@@ -484,10 +491,13 @@ ShadingSystemImpl::setup_op_descriptors ()
     OP (snoise,      noise,               none,          true);
     OP (spline,      spline,              none,          true);
     OP (splineinverse, spline,            none,          true);
+    OP (split,       split,               split,         false);
     OP (sqrt,        generic,             sqrt,          true);
     OP (startswith,  generic,             none,          true);
     OP (step,        generic,             none,          true);
     OP (strlen,      generic,             strlen,        true);
+    OP (strtoi,      generic,             strtoi,        true);
+    OP (strtof,      generic,             strtof,        true);
     OP (sub,         sub,                 sub,           true);
     OP (substr,      generic,             none,          true);
     OP (surfacearea, get_simple_SG_field, none,          true);
@@ -508,6 +518,17 @@ ShadingSystemImpl::setup_op_descriptors ()
     OP (while,       loop_op,             none,          false);
     OP (xor,         bitwise_binary_op,   none,          true);
 #undef OP
+}
+
+
+
+void
+ShadingSystemImpl::setup_op_descriptors ()
+{
+    // This is not a class member function to avoid namespace issues
+    // with function declarations in the function body, when building
+    // with visual studio.
+    shading_system_setup_op_descriptors(m_op_descriptor);
 }
 
 
@@ -582,6 +603,7 @@ ShadingSystemImpl::attribute (const std::string &name, TypeDesc type,
     ATTR_SET ("opt_assign", int, m_opt_assign);
     ATTR_SET ("opt_mix", int, m_opt_mix);
     ATTR_SET ("opt_merge_instances", int, m_opt_merge_instances);
+    ATTR_SET ("opt_fold_getattribute", int, m_opt_fold_getattribute);
     ATTR_SET ("optimize_nondebug", int, m_optimize_nondebug);
     ATTR_SET ("llvm_optimize", int, m_llvm_optimize);
     ATTR_SET ("llvm_debug", int, m_llvm_debug);
@@ -661,6 +683,7 @@ ShadingSystemImpl::getattribute (const std::string &name, TypeDesc type,
     ATTR_DECODE ("opt_assign", int, m_opt_assign);
     ATTR_DECODE ("opt_mix", int, m_opt_mix);
     ATTR_DECODE ("opt_merge_instances", int, m_opt_merge_instances);
+    ATTR_DECODE ("opt_fold_getattribute", int, m_opt_fold_getattribute);
     ATTR_DECODE ("optimize_nondebug", int, m_optimize_nondebug);
     ATTR_DECODE ("llvm_optimize", int, m_llvm_optimize);
     ATTR_DECODE ("debug", int, m_debug);
@@ -1460,6 +1483,7 @@ const ClosureRegistry::ClosureEntry *ClosureRegistry::get_entry(ustring name)con
 OSL_NAMESPACE_EXIT
 
 
+#ifndef BUILD_STATIC
 // Symbols needed to resolve some linkage issues because we pull some
 // components in from liboslcomp.
 int oslparse() { return 0; }
@@ -1468,3 +1492,4 @@ public:
     oslFlexLexer (std::istream *in, std::ostream *out);
 };
 oslFlexLexer::oslFlexLexer (std::istream *in, std::ostream *out) { }
+#endif

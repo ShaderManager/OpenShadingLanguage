@@ -9,6 +9,8 @@ set (OSL_LIBRARY_VERSION_PATCH 0)
 set (OSO_FILE_VERSION_MAJOR 1)
 set (OSO_FILE_VERSION_MINOR 0)
 
+set (BUILDSTATIC OFF CACHE BOOL "Build static library instead of shared")
+
 
 cmake_minimum_required (VERSION 2.6)
 if (NOT CMAKE_VERSION VERSION_LESS 2.8.4)
@@ -241,6 +243,7 @@ TESTSUITE ( arithmetic array array-derivs array-range
             noise-gabor noise-gabor2d-filter noise-gabor3d-filter
             noise-perlin noise-uperlin
             pnoise pnoise-cell pnoise-gabor pnoise-perlin pnoise-uperlin
+            oslc-err-arrayindex oslc-err-closuremul oslc-err-intoverflow
             oslc-err-noreturn oslc-err-paramdefault
             pointcloud pointcloud-fold
             raytype render-background render-bumptest render-cornell render-furnace-diffuse

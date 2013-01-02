@@ -182,6 +182,13 @@ public:
         m_block_aliases[symindex] = -1;
     }
 
+    /// Clear local block aliases for any args that are written by this op.
+    void block_unalias_written_args (Opcode &op) {
+        for (int i = 0, e = op.nargs();  i < e;  ++i)
+            if (op.argwrite(i))
+                block_unalias (inst()->arg(op.firstarg()+i));
+    }
+
     /// Reset all block-local aliases (done when we enter a new basic
     /// block).
     void clear_block_aliases () {
@@ -280,7 +287,8 @@ public:
 
     /// For each symbol, have a list of the symbols it depends on (or that
     /// depends on it).
-    typedef std::map<int, std::set<int> > SymDependency;
+    typedef std::set<int> SymIntSet;
+    typedef std::map<int, SymIntSet> SymDependency;
 
     void syms_used_in_op (Opcode &op,
                           std::vector<int> &rsyms, std::vector<int> &wsyms);
@@ -288,6 +296,8 @@ public:
     void track_variable_dependencies ();
 
     void add_dependency (SymDependency &dmap, int A, int B);
+
+    void mark_symbol_derivatives (SymDependency &symdeps, SymIntSet &visited, int d);
 
     void mark_outgoing_connections ();
 
@@ -328,7 +338,7 @@ public:
 
     /// Helper: return the symbol index of the symbol that is the argnum-th
     /// argument to the given op.
-    int oparg (const Opcode &op, int argnum) {
+    int oparg (const Opcode &op, int argnum) const {
         return inst()->arg (op.firstarg()+argnum);
     }
 
@@ -823,6 +833,8 @@ public:
     /// Which optimization pass are we on?
     int optimization_pass () const { return m_pass; }
 
+    ShaderGlobals &dummy_shaderglobals () { return m_shaderglobals; }
+
     // Maximum number of new constant symbols that a constant-folding
     // function is able to add.
     static const int max_new_consts_per_fold = 10;
@@ -846,7 +858,6 @@ private:
     bool m_opt_coalesce_temps;            ///< Coalesce temporary variables?
     bool m_opt_assign;                    ///< Do various assign optimizations?
     bool m_opt_mix;                       ///< Do mix optimizations?
-    bool m_opt_merge_instances;           ///< Merge identical instances?
     ShaderGlobals m_shaderglobals;        ///< Dummy ShaderGlobals
 
     // All below is just for the one inst we're optimizing:

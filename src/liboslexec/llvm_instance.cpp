@@ -355,6 +355,8 @@ static const char *llvm_helper_function_table[] = {
     UNARY_OP_IMPL(abs),
     UNARY_OP_IMPL(fabs),
 
+    BINARY_OP_IMPL(fmod),
+
     "osl_smoothstep_ffff", "ffff",
     "osl_smoothstep_dfffdf", "xXffX",
     "osl_smoothstep_dffdff", "xXfXf",
@@ -575,11 +577,6 @@ RuntimeOptimizer::llvm_type_groupdata ()
     std::string groupdataname = Strutil::format("Groupdata_%llu",
                                                 (long long unsigned int)group().name().hash());
     m_llvm_type_groupdata = llvm_type_struct (fields, groupdataname);
-
-#ifdef DEBUG
-//    llvm::outs() << "\nGroup struct = " << *m_llvm_type_groupdata << "\n";
-//    llvm::outs() << "  size = " << offset << "\n";
-#endif
 
     return m_llvm_type_groupdata;
 }
@@ -820,6 +817,7 @@ RuntimeOptimizer::build_llvm_instance (bool groupentry)
     m_llvm_groupdata_ptr = arg_it++;
 
     llvm::BasicBlock *entry_bb = llvm_new_basic_block (unique_layer_name);
+    m_exit_instance_block = NULL;
 
     // Set up a new IR builder
     delete m_builder;
@@ -934,6 +932,11 @@ RuntimeOptimizer::build_llvm_instance (bool groupentry)
     }
     // llvm_gen_debug_printf ("done copying connections");
 
+    if (llvm_has_exit_instance_block()) {
+        builder().CreateBr (m_exit_instance_block);
+        builder().SetInsertPoint (m_exit_instance_block);
+    }
+
     // All done
     // llvm_gen_debug_printf (std::string("exit layer ")+inst()->shadername());
     builder().CreateRetVoid();
@@ -1034,6 +1037,17 @@ RuntimeOptimizer::build_llvm_group ()
     // At this point, we already hold the lock for this group, by virtue
     // of ShadingSystemImpl::optimize_group.
     OIIO::Timer timer;
+    std::string err;
+
+#ifdef OSL_LLVM_NO_BITCODE
+    // I don't know which exact part has thread safety issues, but it
+    // crashes on windows when we don't lock.
+    // FIXME -- try subsequent LLVM releases on Windows to see if this
+    // is a problem that is eventually fixed on the LLVM side.
+    {
+    static spin_mutex mutex;
+    OIIO::spin_lock lock (mutex);
+#endif
 
     if (! m_thread->llvm_context)
         m_thread->llvm_context = new llvm::LLVMContext();
@@ -1045,13 +1059,12 @@ RuntimeOptimizer::build_llvm_group ()
     }
 
     ASSERT (! m_llvm_module);
+#ifdef OSL_LLVM_NO_BITCODE
+    m_llvm_module = new llvm::Module("llvm_ops", *m_thread->llvm_context);
+#else
     // Load the LLVM bitcode and parse it into a Module
     const char *data = osl_llvm_compiled_ops_block;
     llvm::MemoryBuffer* buf = llvm::MemoryBuffer::getMemBuffer (llvm::StringRef(data, osl_llvm_compiled_ops_size));
-    std::string err;
-#ifdef OSL_LLVM_NO_BITCODE
-    m_llvm_module = new llvm::Module("llvm_ops", *llvm_context());
-#else
     // Load the LLVM bitcode and parse it into a Module
     m_llvm_module = llvm::ParseBitcodeFile (buf, *m_thread->llvm_context, &err);
     if (err.length())
@@ -1074,6 +1087,11 @@ RuntimeOptimizer::build_llvm_group ()
     // will be stealing the JIT code memory from under its nose and
     // destroying the Module & ExecutionEngine.
     m_llvm_exec->DisableLazyCompilation ();
+
+#ifdef OSL_LLVM_NO_BITCODE
+    // End of mutex lock
+    }
+#endif
 
     m_stat_llvm_setup_time += timer.lap();
 

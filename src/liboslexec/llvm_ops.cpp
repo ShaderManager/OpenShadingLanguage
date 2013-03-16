@@ -125,6 +125,14 @@ using OIIO::isnan;
 using OIIO::isfinite;
 #endif
 
+#if defined(__FreeBSD__)
+#include <sys/param.h>
+#if __FreeBSD_version < 803000
+// freebsd before 8.3 doesn't have log2f - use OIIO lib replacement
+using OIIO::log2f;
+#endif
+#endif
+
 // Handy re-casting macros
 #define USTR(cstr) (*((ustring *)&cstr))
 #define MAT(m) (*(Matrix44 *)m)
@@ -576,6 +584,18 @@ inline Dual2<float> fabsf (const Dual2<float> &x) {
 MAKE_UNARY_PERCOMPONENT_OP (abs, fabsf, fabsf);
 MAKE_UNARY_PERCOMPONENT_OP (fabs, fabsf, fabsf);
 
+inline float safe_fmod (float a, float b) {
+    if (b == 0.0f)
+        return 0.0f;
+    else
+        return std::fmod (a, b);
+}
+
+inline Dual2<float> safe_fmod (const Dual2<float> &a, const Dual2<float> &b) {
+    return Dual2<float> (safe_fmod (a.val(), b.val()), a.dx(), a.dy());
+}
+
+MAKE_BINARY_PERCOMPONENT_OP (fmod, safe_fmod, safe_fmod);
 
 OSL_SHADEOP float osl_smoothstep_ffff(float e0, float e1, float x) { return smoothstep(e0, e1, x); }
 
@@ -1105,13 +1125,13 @@ osl_endswith_iss (const char *s, const char *substr)
 }
 
 OSL_SHADEOP int
-osl_strtoi_is (const char *str)
+osl_stoi_is (const char *str)
 {
     return strtol(str, NULL, 10);
 }
 
 OSL_SHADEOP float
-osl_strtof_fs (const char *str)
+osl_stof_fs (const char *str)
 {
     return (float)strtod(str, NULL);
 }

@@ -120,21 +120,6 @@ OSOReaderToMaster::parse_memory (const std::string &oso)
 }
 
 
-
-
-OSOReaderToMaster::parse_memory (const std::string &oso)
-{
-    m_master->m_osofilename = "<none>";
-    m_master->m_maincodebegin = 0;
-    m_master->m_maincodeend = 0;
-    m_codesection.clear ();
-    m_codesym = -1;
-    return OSOReader::parse_memory (oso);
-}
-
-
-
-
 void
 OSOReaderToMaster::version (const char *specid, int major, int minor)
 {
@@ -618,57 +603,6 @@ ShadingSystemImpl::LoadMemoryCompiledShader (const char *shadername,
         }
     } else {
         error ("Unable to parse preloaded shader \"%s\"", shadername);
-    }
-
-    return true;
-}
-
-
-
-bool
-ShadingSystemImpl::LoadMemoryCompiledShader (const char *shadername,
-                                             const char *buffer)
-{
-    if (! shadername || ! shadername[0]) {
-        error ("Attempt to load shader with empty name \"\".");
-        return false;
-    }
-    if (! buffer || ! buffer[0]) {
-        error ("Attempt to load shader \"%s\" with empty OSO data.", shadername);
-        return false;
-    }
-
-    ustring name (shadername);
-    lock_guard guard (m_mutex);  // Thread safety
-    ShaderNameMap::const_iterator found = m_shader_masters.find (name);
-    if (found != m_shader_masters.end()) {
-        if (debug())
-            info ("Preload shader %s already exists in shader_masters", name.c_str());
-        return false;
-    }
-
-    // Not found in the map
-    OSOReaderToMaster reader (*this);
-    OIIO::Timer timer;
-    bool ok = reader.parse_memory (buffer);
-    ShaderMaster::ref r = ok ? reader.master() : NULL;
-    m_shader_masters[name] = r;
-    if (ok) {
-        ++m_stat_shaders_loaded;
-        info ("Loaded \"%s\" (took %s)", shadername, Strutil::timeintervalformat(timer(), 2).c_str());
-    } else {
-        error ("Unable to parse preloaded shader \"%s\"", shadername);
-    }
-    // FIXME -- catch errors
-
-    if (r) {
-        r->resolve_syms ();
-    }
-
-    if (r && m_debug) {
-        std::string s = r->print ();
-        if (s.length())
-            info ("%s", s.c_str());
     }
 
     return true;

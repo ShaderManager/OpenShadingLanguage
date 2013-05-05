@@ -136,7 +136,7 @@ if (USE_TBB)
         if (VERBOSE)
             message (STATUS "TBB includes = ${TBB_INCLUDES}")
             message (STATUS "TBB library = ${TBB_LIBRARY}")
-        endif ()
+        endif ()              
     else ()
         message (STATUS "TBB not found")
     endif ()
@@ -239,6 +239,7 @@ endif ()
 if ((LLVM_LIBRARY OR LLVM_STATIC) AND LLVM_INCLUDES AND LLVM_DIRECTORY AND LLVM_LIB_DIR)
   # ensure include directory is added (in case of non-standard locations
   include_directories (BEFORE "${LLVM_INCLUDES}")
+  link_directories ("${LLVM_LIB_DIR}")
   # Extract any wayward dots or "svn" suffixes from the version to yield
   # an integer version number we can use to make compilation decisions.
   string (REGEX REPLACE "\\." "" OSL_LLVM_VERSION ${LLVM_VERSION})
@@ -249,7 +250,7 @@ if ((LLVM_LIBRARY OR LLVM_STATIC) AND LLVM_INCLUDES AND LLVM_DIRECTORY AND LLVM_
     # the list of what libraries we need, and substitute that in the right
     # way for LLVM_LIBRARY.    
     if (NOT LLVM_CONFIG)
-			get_property(LLVM_LIBRARY GLOBAL PROPERTY LLVM_LIBS)
+			llvm_map_components_to_libraries(LLVM_LIBRARY jit interpreter native scalaropts ipo vectorize asmparser bitwriter )
 		else ()
 			execute_process (COMMAND ${LLVM_CONFIG} --libfiles
 											 OUTPUT_VARIABLE LLVM_LIBRARY

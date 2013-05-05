@@ -319,14 +319,7 @@ ShaderInstance::copy_code_from_master ()
             }
         }
     }
-    off_t symmem = vectorbytes(m_instsymbols) - vectorbytes(m_instoverrides);
-    SymOverrideInfoVec().swap (m_instoverrides);  // free it
-                }
-                si->valuesource (m_instoverrides[i].valuesource());
-                si->connected_down (m_instoverrides[i].connected_down());
-            }
-        }
-    }
+
     off_t symmem = vectorbytes(m_instsymbols) - vectorbytes(m_instoverrides);
     SymOverrideInfoVec().swap (m_instoverrides);  // free it
 

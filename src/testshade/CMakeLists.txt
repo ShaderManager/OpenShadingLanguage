@@ -12,13 +12,13 @@ else ()
     ADD_LIBRARY ( "libtestshade" SHARED ${testshade_srcs} )
 endif ()
 
-TARGET_LINK_LIBRARIES (libtestshade oslexec oslcomp oslquery ${OPENIMAGEIO_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS} ${LLVM_LIBRARY} )
+TARGET_LINK_LIBRARIES (libtestshade oslexec oslcomp oslquery ${OPENIMAGEIO_LIBRARY} ${Boost_LIBRARIES} ${CMAKE_DL_LIBS} ${LLVM_LIBRARY} ${TBB_LIBRARY})
 SET_TARGET_PROPERTIES (libtestshade PROPERTIES PREFIX "")
 
 if (BUILDSTATIC)
-    INSTALL ( TARGETS libtestshade LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+    INSTALL ( TARGETS libtestshade RUNTIME DESTINATION bin LIBRARY DESTINATION bin ARCHIVE DESTINATION lib)
 else ()
-    INSTALL (TARGETS libtestshade LIBRARY DESTINATION lib )
+    INSTALL (TARGETS libtestshade RUNTIME DESTINATION bin LIBRARY DESTINATION bin)
 endif ()
 
 # The 'testshade_dso' executable

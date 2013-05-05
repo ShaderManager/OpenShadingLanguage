@@ -34,18 +34,32 @@ namespace llvm = LLVM_NAMESPACE;
 #endif
 
 #include <llvm/Bitcode/ReaderWriter.h>
+#if OSL_LLVM_VERSION >= 33
+#include <llvm/IR/Constants.h>
+#include <llvm/IR/DerivedTypes.h>
+#else
 #include <llvm/Constants.h>
 #include <llvm/DerivedTypes.h>
+#endif
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/ExecutionEngine/JIT.h>
 #include <llvm/ExecutionEngine/JITMemoryManager.h>
+#if OSL_LLVM_VERSION >= 33
+#include <llvm/IR/Instructions.h>
+#include <llvm/IR/Intrinsics.h>
+#include <llvm/IR/LLVMContext.h>
+#include <llvm/IR/Module.h>
+#else
 #include <llvm/Instructions.h>
 #include <llvm/Intrinsics.h>
-#include <llvm/Linker.h>
 #include <llvm/LLVMContext.h>
 #include <llvm/Module.h>
+#endif
+#include <llvm/Linker.h>
 #include <llvm/PassManager.h>
-#if OSL_LLVM_VERSION >= 32
+#if OSL_LLVM_VERSION >= 33
+#include <llvm/IR/IRBuilder.h>
+#elif OSL_LLVM_VERSION >= 32
 #include <llvm/IRBuilder.h>
 #else
 #include <llvm/Support/IRBuilder.h>
@@ -53,7 +67,9 @@ namespace llvm = LLVM_NAMESPACE;
 #include <llvm/Support/ManagedStatic.h>
 #include <llvm/Support/MemoryBuffer.h>
 #include <llvm/Support/raw_ostream.h>
-#if OSL_LLVM_VERSION >= 32
+#if OSL_LLVM_VERSION >= 33
+#include <llvm/IR/DataLayout.h>
+#elif OSL_LLVM_VERSION == 32
 #include <llvm/DataLayout.h>
 #else
 #include <llvm/Target/TargetData.h>

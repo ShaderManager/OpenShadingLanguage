@@ -420,12 +420,6 @@ public:
         return index >= 0 ? master()->symbol(index) : NULL;
     }
 
-    /// Return a pointer to the master's version of the indexed symbol.
-    /// It's a const*, since you shouldn't mess with the master's copy.
-    const Symbol *mastersymbol (int index) const {
-        return index >= 0 ? master()->symbol(index) : NULL;
-    }
-
     /// Where is the location that holds the parameter's instance value?
     void *param_storage (int index);
     const void *param_storage (int index) const;

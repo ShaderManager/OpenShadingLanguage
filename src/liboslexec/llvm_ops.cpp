@@ -1052,19 +1052,19 @@ osl_distance_fvv (void *a_, void *b_)
 OSL_SHADEOP void
 osl_distance_dfdvdv (void *result, void *a, void *b)
 {
-    DFLOAT(result) = distance (DVEC(a), DVEC(b));
+    DFLOAT(result) = OSL::distance (DVEC(a), DVEC(b));
 }
 
 OSL_SHADEOP void
 osl_distance_dfdvv (void *result, void *a, void *b)
 {
-    DFLOAT(result) = distance (DVEC(a), VEC(b));
+    DFLOAT(result) = OSL::distance (DVEC(a), VEC(b));
 }
 
 OSL_SHADEOP void
 osl_distance_dfvdv (void *result, void *a, void *b)
 {
-    DFLOAT(result) = distance (VEC(a), DVEC(b));
+    DFLOAT(result) = OSL::distance (VEC(a), DVEC(b));
 }
 
 

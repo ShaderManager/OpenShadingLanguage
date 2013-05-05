@@ -123,14 +123,15 @@ TARGET_LINK_LIBRARIES ( oslexec
                         ${OPENIMAGEIO_LIBRARY}
                         ${PARTIO_LIBRARIES} ${ZLIB_LIBRARIES}
                         ${Boost_LIBRARIES} ${CMAKE_DL_LIBS}
-                        ${LLVM_LIBRARY} ${EXTRA_OSLEXEC_LIBRARIES})
+                        ${LLVM_LIBRARY} ${EXTRA_OSLEXEC_LIBRARIES}
+                        ${TBB_LIBRARY})
 ADD_DEPENDENCIES (oslexec ${CMAKE_CURRENT_SOURCE_DIR}/liboslcexec.map)
 LINK_ILMBASE ( oslexec )
 
 if (BUILDSTATIC)
-    INSTALL ( TARGETS oslexec LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
+    INSTALL ( TARGETS oslexec RUNTIME DESTINATION bin LIBRARY DESTINATION lib ARCHIVE DESTINATION lib)
 else ()
-    INSTALL ( TARGETS oslexec LIBRARY DESTINATION lib )
+    INSTALL ( TARGETS oslexec RUNTIME DESTINATION bin LIBRARY DESTINATION lib)
 endif ()
 
 # Unit tests

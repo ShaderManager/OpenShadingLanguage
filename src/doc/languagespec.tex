@@ -62,7 +62,7 @@ Language Specification
 Editor: Larry Gritz \\
 \emph{lg@imageworks.com}
 }
-\date{{\large Date: 28 Jan, 2013 \\
+\date{{\large Date: 30 Apr, 2013 \\
 ~ %(with corrections, 22 Feb, 2012)
 }
 \bigskip
@@ -3343,9 +3343,23 @@ large-scale average is 0.5, and its values are evenly distributed over
 $[0,1]$.
 \apiend
 
+\apiitem{"simplex"}
+\vspace{12pt}
+\NEW % 1.4
+A signed simplex noise with an output range of $[-1,1]$,
+approximate average value of $0$.
+\apiend
+
+\apiitem{"usimplex"}
+\vspace{12pt}
+\NEW % 1.4
+An unsigned simplex noise with an output range of $[0,1]$,
+approximate average value of $0.5$.
+\apiend
+
 \apiitem{"gabor"}
 \vspace{12pt}
-\NEW A band-limited, filtered, sparse convolution noise based on the
+A band-limited, filtered, sparse convolution noise based on the
 Gabor impulse function (see Lagae et al., SIGGRAPH 2012).  Our Gabor
 noise is designed to have somewhat similar frequency content and range
 as Perlin noise (range $[-1,1]$, approximately large-scale average of

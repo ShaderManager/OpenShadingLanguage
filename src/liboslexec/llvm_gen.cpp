@@ -2394,14 +2394,14 @@ llvm_gen_noise_options (RuntimeOptimizer &rop, int opnum,
 
 
 
-// T noise (string name, float s, ...);
-// T noise (string name, float s, float t, ...);
-// T noise (string name, point P, ...);
-// T noise (string name, point P, float t, ...);
-// T pnoise (string name, float s, float sper, ...);
-// T pnoise (string name, float s, float t, float sper, float tper, ...);
-// T pnoise (string name, point P, point Pper, ...);
-// T pnoise (string name, point P, float t, point Pper, float tper, ...);
+// T noise ([string name,] float s, ...);
+// T noise ([string name,] float s, float t, ...);
+// T noise ([string name,] point P, ...);
+// T noise ([string name,] point P, float t, ...);
+// T pnoise ([string name,] float s, float sper, ...);
+// T pnoise ([string name,] float s, float t, float sper, float tper, ...);
+// T pnoise ([string name,] point P, point Pper, ...);
+// T pnoise ([string name,] point P, float t, point Pper, float tper, ...);
 LLVMGEN (llvm_gen_noise)
 {
     Opcode &op (rop.inst()->ops()[opnum]);
@@ -2468,6 +2468,10 @@ LLVMGEN (llvm_gen_noise)
     } else if (name == Strings::cell || name == Strings::cellnoise) {
         name = periodic ? Strings::pcellnoise : Strings::cellnoise;
         derivs = false;  // cell noise derivs are always zero
+    } else if (name == Strings::simplex && !periodic) {
+        name = Strings::simplexnoise;
+    } else if (name == Strings::usimplex && !periodic) {
+        name = Strings::usimplexnoise;
     } else if (name == Strings::gabor) {
         // already named
         pass_name = true;
@@ -2476,8 +2480,9 @@ LLVMGEN (llvm_gen_noise)
         derivs = true;
         name = periodic ? Strings::gaborpnoise : Strings::gabornoise;
     } else {
-        rop.shadingsys().error ("Noise type \"%s\" is unknown, called from (%s:%d)",
-                                name.c_str(), op.sourcefile().c_str(), op.sourceline());
+        rop.shadingsys().error ("%snoise type \"%s\" is unknown, called from (%s:%d)",
+                                (periodic ? "periodic " : ""), name.c_str(),
+                                op.sourcefile().c_str(), op.sourceline());
         return false;
     }
 

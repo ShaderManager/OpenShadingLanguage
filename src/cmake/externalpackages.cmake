@@ -201,13 +201,13 @@ else()
 endif()
 
 if (NOT LLVM_CONFIG)
-			set(LLVM_ROOT "" CACHED PATH "Path to LLVM directory")
 			set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${LLVM_ROOT}/share/llvm/cmake")
 			include(LLVMConfig)
 			set(LLVM_VERSION ${LLVM_PACKAGE_VERSION})
 			set(LLVM_DIRECTORY ${LLVM_ROOT})
 			set(LLVM_LIB_DIR ${LLVM_ROOT}/lib)
 			set(LLVM_INCLUDES ${LLVM_ROOT}/include)
+			set(LLVM_STATIC TRUE)
 			
 elseif(NOT LLVM_DIRECTORY OR EXISTS ${LLVM_CONFIG})
   execute_process (COMMAND ${LLVM_CONFIG} --version
@@ -247,9 +247,9 @@ if ((LLVM_LIBRARY OR LLVM_STATIC) AND LLVM_INCLUDES AND LLVM_DIRECTORY AND LLVM_
   if (LLVM_STATIC)
     # if static LLVM libraries were requested, use llvm-config to generate
     # the list of what libraries we need, and substitute that in the right
-    # way for LLVM_LIBRARY.
+    # way for LLVM_LIBRARY.    
     if (NOT LLVM_CONFIG)
-			set(LLVM_LIBRARY ${LLVM_LIBS})
+			get_property(LLVM_LIBRARY GLOBAL PROPERTY LLVM_LIBS)
 		else ()
 			execute_process (COMMAND ${LLVM_CONFIG} --libfiles
 											 OUTPUT_VARIABLE LLVM_LIBRARY

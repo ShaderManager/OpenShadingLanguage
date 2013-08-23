@@ -243,7 +243,7 @@ ustring do_filter("do_filter"), bandwidth("bandwidth"), impulses("impulses");
 ustring op_dowhile("dowhile"), op_for("for"), op_while("while");
 ustring op_exit("exit");
 ustring subimage("subimage"), subimagename("subimagename");
-
+ustring uninitialized_string("!!!uninitialized!!!");
 };
 
 
@@ -257,7 +257,7 @@ ShadingSystemImpl::ShadingSystemImpl (RendererServices *renderer,
     : m_renderer(renderer), m_texturesys(texturesystem), m_err(err),
       m_statslevel (0), m_lazylayers (true),
       m_lazyglobals (false),
-      m_clearmemory (false), m_debugnan (false),
+      m_clearmemory (false), m_debugnan (false), m_debug_uninit(false),
       m_lockgeom_default (false), m_strict_messages(true),
       m_range_checking(true), m_unknown_coordsys_error(true),
       m_greedyjit(false), m_countlayerexecs(false),
@@ -272,7 +272,7 @@ ShadingSystemImpl::ShadingSystemImpl (RendererServices *renderer,
       m_opt_middleman(true),
       m_optimize_nondebug(false),
       m_llvm_optimize(0),
-      m_debug(false), m_llvm_debug(false),
+      m_debug(0), m_llvm_debug(0),
       m_commonspace_synonym("world"),
       m_colorspace("Rec709"),
       m_max_local_mem_KB(1024),
@@ -382,14 +382,14 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     // name          llvmgen              folder         simple
     OP (aassign,     aassign,             none,          false);
     OP (abs,         generic,             abs,           true);
-    OP (acos,        generic,             none,          true);
+    OP (acos,        generic,             acos,          true);
     OP (add,         add,                 add,           true);
     OP (and,         andor,               and,           true);
-    OP (area,        area,                none,          true);
+    OP (area,        area,                deriv,         true);
     OP (aref,        aref,                aref,          true);
     OP (arraycopy,   arraycopy,           none,          false);
     OP (arraylength, arraylength,         arraylength,   true);
-    OP (asin,        generic,             none,          true);
+    OP (asin,        generic,             asin,          true);
     OP (assign,      assign,              none,          true);
     OP (atan,        generic,             none,          true);
     OP (atan2,       generic,             none,          true);
@@ -409,10 +409,10 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (compref,     compref,             compref,       true);
     OP (concat,      generic,             concat,        true);
     OP (continue,    loopmod_op,          none,          false);
-    OP (cos,         generic,             none,          true);
+    OP (cos,         generic,             cos,           true);
     OP (cosh,        generic,             none,          true);
     OP (cross,       generic,             none,          true);
-    OP (degrees,     generic,             none,          true);
+    OP (degrees,     generic,             degrees,       true);
     OP (determinant, generic,             none,          true);
     OP (dict_find,   dict_find,           none,          false);
     OP (dict_next,   dict_next,           none,          false);
@@ -420,24 +420,24 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (distance,    generic,             none,          true);
     OP (div,         div,                 div,           true);
     OP (dot,         generic,             dot,           true);
-    OP (Dx,          DxDy,                none,          true);
-    OP (Dy,          DxDy,                none,          true);
-    OP (Dz,          Dz,                  none,          true);
+    OP (Dx,          DxDy,                deriv,         true);
+    OP (Dy,          DxDy,                deriv,         true);
+    OP (Dz,          Dz,                  deriv,         true);
     OP (dowhile,     loop_op,             none,          false);
     OP (end,         end,                 none,          false);
     OP (endswith,    generic,             endswith,      true);
     OP (environment, environment,         none,          true);
     OP (eq,          compare_op,          eq,            true);
-    OP (erf,         generic,             none,          true);
-    OP (erfc,        generic,             none,          true);
+    OP (erf,         generic,             erf,           true);
+    OP (erfc,        generic,             erfc,          true);
     OP (error,       printf,              none,          false);
     OP (exit,        return,              none,          false);
-    OP (exp,         generic,             none,          true);
-    OP (exp2,        generic,             none,          true);
-    OP (expm1,       generic,             none,          true);
-    OP (fabs,        generic,             none,          true);
-    OP (filterwidth, filterwidth,         none,          true);
-    OP (floor,       generic,             floor,          true);
+    OP (exp,         generic,             exp,           true);
+    OP (exp2,        generic,             exp2,          true);
+    OP (expm1,       generic,             expm1,         true);
+    OP (fabs,        generic,             abs,           true);
+    OP (filterwidth, filterwidth,         deriv,         true);
+    OP (floor,       generic,             floor,         true);
     OP (fmod,        modulus,             none,          true);
     OP (for,         loop_op,             none,          false);
     OP (format,      printf,              format,        true);
@@ -449,17 +449,17 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (gettextureinfo, gettextureinfo,   gettextureinfo,false);
     OP (gt,          compare_op,          gt,            true);
     OP (if,          if,                  if,            false);
-    OP (inversesqrt, generic,             none,          true);
+    OP (inversesqrt, generic,             inversesqrt,   true);
     OP (isconnected, generic,             none,          true);
     OP (isfinite,    generic,             none,          true);
     OP (isinf,       generic,             none,          true);
     OP (isnan,       generic,             none,          true);
     OP (le,          compare_op,          le,            true);
     OP (length,      generic,             none,          true);
-    OP (log,         generic,             none,          true);
-    OP (log10,       generic,             none,          true);
-    OP (log2,        generic,             none,          true);
-    OP (logb,        generic,             none,          true);
+    OP (log,         generic,             log,           true);
+    OP (log10,       generic,             log10,         true);
+    OP (log2,        generic,             log2,          true);
+    OP (logb,        generic,             logb,          true);
     OP (lt,          compare_op,          lt,            true);
     OP (luminance,   luminance,           none,          true);
     OP (matrix,      matrix,              matrix,        true);
@@ -474,7 +474,7 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (neq,         compare_op,          neq,           true);
     OP (noise,       noise,               noise,         true);
     OP (normal,      construct_triple,    triple,        true);
-    OP (normalize,   generic,             none,          true);
+    OP (normalize,   generic,             normalize,     true);
     OP (or,          andor,               or,            true);
     OP (pnoise,      noise,               noise,         true);
     OP (point,       construct_triple,    triple,        true);
@@ -484,7 +484,7 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (pow,         generic,             pow,           true);
     OP (printf,      printf,              none,          false);
     OP (psnoise,     noise,               noise,         true);
-    OP (radians,     generic,             none,          true);
+    OP (radians,     generic,             radians,       true);
     OP (raytype,     raytype,             none,          true);
     OP (regex_match, regex,               none,          false);
     OP (regex_search, regex,              regex_search,  false);
@@ -494,7 +494,7 @@ shading_system_setup_op_descriptors (ShadingSystemImpl::OpDescriptorMap& op_desc
     OP (shl,         bitwise_binary_op,   none,          true);
     OP (shr,         bitwise_binary_op,   none,          true);
     OP (sign,        generic,             none,          true);
-    OP (sin,         generic,             none,          true);
+    OP (sin,         generic,             sin,           true);
     OP (sincos,      sincos,              none,          false);
     OP (sinh,        generic,             none,          true);
     OP (smoothstep,  generic,             none,          true);
@@ -625,7 +625,9 @@ ShadingSystemImpl::attribute (const std::string &name, TypeDesc type,
     ATTR_SET ("lazylayers", int, m_lazylayers);
     ATTR_SET ("lazyglobals", int, m_lazyglobals);
     ATTR_SET ("clearmemory", int, m_clearmemory);
-    ATTR_SET ("debugnan", int, m_debugnan);
+    ATTR_SET ("debug_nan", int, m_debugnan);
+    ATTR_SET ("debugnan", int, m_debugnan);  // back-compatible alias
+    ATTR_SET ("debug_uninit", int, m_debug_uninit);
     ATTR_SET ("lockgeom", int, m_lockgeom_default);
     ATTR_SET ("optimize", int, m_optimize);
     ATTR_SET ("opt_simplify_param", int, m_opt_simplify_param);
@@ -713,7 +715,9 @@ ShadingSystemImpl::getattribute (const std::string &name, TypeDesc type,
     ATTR_DECODE ("lazylayers", int, m_lazylayers);
     ATTR_DECODE ("lazyglobals", int, m_lazyglobals);
     ATTR_DECODE ("clearmemory", int, m_clearmemory);
-    ATTR_DECODE ("debugnan", int, m_debugnan);
+    ATTR_DECODE ("debug_nan", int, m_debugnan);
+    ATTR_DECODE ("debugnan", int, m_debugnan);  // back-compatible alias
+    ATTR_DECODE ("debug_uninit", int, m_debug_uninit);
     ATTR_DECODE ("lockgeom", int, m_lockgeom_default);
     ATTR_DECODE ("optimize", int, m_optimize);
     ATTR_DECODE ("opt_simplify_param", int, m_opt_simplify_param);

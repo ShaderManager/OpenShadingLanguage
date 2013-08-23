@@ -97,8 +97,11 @@ public:
     /// Retrieve the dummy shader globals
     ShaderGlobals *shaderglobals () { return &m_shaderglobals; }
 
-    /// Are we in debugging mode?
+    /// What debug level are we at?
     int debug() const { return m_debug; }
+
+    /// What LLVM debug level are we at?
+    int llvm_debug() const;
 
     /// What's our current optimization level?
     int optimize() const { return m_optimize; }
@@ -212,6 +215,11 @@ public:
     void global_alias (int symindex, int alias) {
         m_symbol_aliases[symindex] = alias;
     }
+
+    /// Is the symbol a constant whose value is 0?
+    static bool is_zero (const Symbol &A);
+    /// Is the symbol a constant whose value is 1?
+    static bool is_one (const Symbol &A);
 
     /// Is the given symbol stale?  A "stale" symbol is one that, within
     /// the current basic block, has been assigned in a simple manner
@@ -850,6 +858,8 @@ public:
 
     /// Check for inf/nan in all written-to arguments of the op
     void llvm_generate_debugnan (const Opcode &op);
+    /// Check for uninitialized values in all read-from arguments to the op
+    void llvm_generate_debug_uninit (const Opcode &op);
 
     llvm::Function *layer_func () const { return m_layer_func; }
 

@@ -44,10 +44,6 @@ MY_CMAKE_FLAGS += -DVERBOSE:BOOL=1
 TEST_FLAGS += -V
 endif
 
-ifneq (${USE_TBB},)
-MY_CMAKE_FLAGS += -DUSE_TBB:BOOL=${USE_TBB}
-endif
-
 ifneq (${LLVM_DIRECTORY},)
 MY_CMAKE_FLAGS += -DLLVM_DIRECTORY:STRING=${LLVM_DIRECTORY}
 endif
@@ -98,6 +94,10 @@ endif
 
 ifneq (${BUILDSTATIC},)
 MY_CMAKE_FLAGS += -DBUILDSTATIC:BOOL=${BUILDSTATIC}
+endif
+
+ifneq (${USE_EXTERNAL_PUGIXML},)
+MY_CMAKE_FLAGS += -DUSE_EXTERNAL_PUGIXML:BOOL=${USE_EXTERNAL_PUGIXML} -DPUGIXML_HOME=${PUGIXML_HOME}
 endif
 
 ifdef DEBUG
@@ -238,7 +238,6 @@ help:
 	@echo "  make VERBOSE=1 ...          Show all compilation commands"
 	@echo "  make MYCC=xx MYCXX=yy ...   Use custom compilers"
 	@echo "  make OSL_SITE=xx            Use custom site build mods"
-	@echo "  make USE_TBB=0 ...          Don't use TBB"
 	@echo "  make LLVM_VERSION=2.9 ...   Specify which LLVM version to use"
 	@echo "  make LLVM_DIRECTORY=xx ...  Specify where LLVM lives"
 	@echo "  make LLVM_NAMESPACE=xx ...  Specify custom LLVM namespace"
@@ -251,4 +250,5 @@ help:
 	@echo "  make PARTIO_HOME=...        Use Partio from the given location"
 	@echo "  make STOP_ON_WARNING=0      Do not stop building if compiler warns"
 	@echo "  make BUILDSTATIC=1 ...      Build static library instead of shared"
+	@echo "  make USE_EXTERNAL_PUGIXML=1 Use the system PugiXML, not the one in OIIO"
 	@echo ""

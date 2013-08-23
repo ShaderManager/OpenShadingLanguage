@@ -342,7 +342,7 @@ ShaderInstance::print ()
     out << "  symbols:\n";
     for (size_t i = 0;  i < m_instsymbols.size();  ++i) {
         const Symbol &s (*symbol(i));
-        s.print (out);
+        s.print (out, 256);
     }
 #if 0
     out << "  int consts:\n    ";
@@ -370,7 +370,7 @@ ShaderInstance::print ()
             out << " " << s->name();
             if (s->symtype() == SymTypeConst) {
                 out << " (";
-                s->print_vals(out);
+                s->print_vals(out,16);
                 out << ")";
             }
             if (op.argread(a))
@@ -389,7 +389,8 @@ ShaderInstance::print ()
         size_t slash = filename.find_last_of ("/");
         if (slash != std::string::npos)
             filename.erase (0, slash+1);
-        out << "  (" << filename << ":" << op.sourceline() << ")";
+        if (filename.length())
+            out << "  (" << filename << ":" << op.sourceline() << ")";
         out << "\n";
     }
     return out.str ();

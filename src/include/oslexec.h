@@ -84,8 +84,10 @@ public:
     ///    string colorspace      Name of RGB color space ("Rec709")
     ///    int range_checking     Generate extra code for component & array
     ///                              range checking (1)
-    ///    int debugnan           Add extra (expensive) code to pinpoint
+    ///    int debug_nan          Add extra (expensive) code to pinpoint
     ///                              when NaN/Inf happens (0).
+    ///    int debug_uninit       Add extra (expensive) code to pinpoint
+    ///                              use of uninitialized variables (0).
     ///    int compile_report     Issue info messages to the renderer for
     ///                              every shader compiled (0).
     ///    int max_warnings_per_thread  Number of warning calls that should be
@@ -126,7 +128,7 @@ public:
     ///         opt_peephole, opt_coalesce_temps, opt_assign, opt_mix
     ///         opt_merge_instances, opt_fold_getattribute
     ///    int llvm_optimize      Which of several LLVM optimize strategies (0)
-    ///    int llvm_debug         Turn on extra LLVM debug info (0)
+    ///    int llvm_debug         Set LLVM extra debug level (0)
     ///    int max_local_mem_KB   Error if shader group needs more than this
     ///                              much local storage to execute (1024K)
     ///    string debug_groupname Name of shader group -- debug only this one

@@ -71,14 +71,8 @@ ShadingContext::execute (ShaderUse use, ShadingAttribState &sas,
                          ShaderGlobals &ssg, bool run)
 {
     DASSERT (use == ShadUseSurface);  // FIXME
-
     m_curuse = use;
     m_attribs = &sas;
-
-    if (shadingsys().m_groups_to_compile_count) {
-        // If we are greedily JITing, optimize/JIT everything now
-        shadingsys().optimize_all_groups ();
-    }
 
     // Optimize if we haven't already
     ShaderGroup &sgroup (sas.shadergroup (use));
@@ -86,6 +80,10 @@ ShadingContext::execute (ShaderUse use, ShadingAttribState &sas,
         sgroup.start_running ();
         if (! sgroup.optimized()) {
             shadingsys().optimize_group (sas, sgroup);
+            if (shadingsys().m_greedyjit && shadingsys().m_groups_to_compile_count) {
+                // If we are greedily JITing, optimize/JIT everything now
+                shadingsys().optimize_all_groups ();
+            }
         }
         if (sgroup.does_nothing())
             return false;
@@ -152,8 +150,10 @@ ShadingContext::symbol_data (Symbol &sym)
     if (! sgroup.llvm_compiled_version())
         return NULL;   // can't retrieve symbol if we didn't JIT and runit
 
-    if (sym.dataoffset() >= 0)  // lives on the heap
+    if (sym.dataoffset() >= 0 && (int)m_heap.size() > sym.dataoffset()) {
+        // lives on the heap
         return &m_heap[sym.dataoffset()];
+    }
 
     // doesn't live on the heap
     if ((sym.symtype() == SymTypeParam || sym.symtype() == SymTypeOutputParam) &&

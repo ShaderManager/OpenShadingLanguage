@@ -124,7 +124,9 @@ endif ()
 set (VERBOSE OFF CACHE BOOL "Print lots of messages while compiling")
 set (BUILDSTATIC OFF CACHE BOOL "Build static library instead of shared")
 set (HIDE_SYMBOLS OFF CACHE BOOL "Hide symbols not in the public API")
-set (USE_TBB ON CACHE BOOL "Use TBB if needed")
+set (USE_EXTERNAL_PUGIXML OFF CACHE BOOL
+     "Use an externally built shared library version of the pugixml library")
+set (PUGIXML_HOME "" CACHE STRING "Hint about where to find external PugiXML library")
 if (WIN32)
     set (USE_BOOST_WAVE ON CACHE BOOL "Use Boost Wave as preprocessor")
     set (USE_LLVM_BITCODE OFF CACHE BOOL "Generate embedded LLVM bitcode")
@@ -136,6 +138,10 @@ set (USE_PARTIO ON CACHE BOOL "Use Partio if found")
 
 if (LLVM_NAMESPACE)
     add_definitions ("-DLLVM_NAMESPACE=${LLVM_NAMESPACE}")
+endif ()
+
+if (USE_EXTERNAL_PUGIXML)
+    add_definitions ("-DUSE_EXTERNAL_PUGIXML")
 endif ()
 
 if (EXTRA_CPP_DEFINITIONS)
@@ -155,7 +161,7 @@ include (flexbison)
 include_directories (
       ${CMAKE_SOURCE_DIR}/include
       ${CMAKE_BINARY_DIR}/include
-      ${OPENIMAGEIO_INCLUDES} ${TBB_INCLUDES}
+      ${OPENIMAGEIO_INCLUDES}
   )
 
 
@@ -260,10 +266,11 @@ endmacro ()
 # List all the individual testsuite tests here, except those that need
 # special installed tests.
 #TESTSUITE ( oslc-empty )
-TESTSUITE ( arithmetic array array-derivs array-range
-            blackbody blendmath breakcont bug-locallifetime
+TESTSUITE ( aastep arithmetic array array-derivs array-range
+            blackbody blendmath breakcont
+            bug-locallifetime bug-outputinit bug-peep
             cellnoise closure color comparison
-            component-range const-array-params debugnan
+            component-range const-array-params debugnan debug-uninit
             derivs derivs-muldiv-clobber error-dupes exit exponential
             function-earlyreturn function-simple function-outputelem
             geomath getsymbol-nonheap gettextureinfo hyperb
@@ -274,7 +281,8 @@ TESTSUITE ( arithmetic array array-derivs array-range
             noise-gabor noise-gabor2d-filter noise-gabor3d-filter
             noise-perlin noise-uperlin noise-simplex noise-usimplex
             pnoise pnoise-cell pnoise-gabor pnoise-perlin pnoise-uperlin
-            oslc-err-arrayindex oslc-err-closuremul oslc-err-intoverflow
+            oslc-err-arrayindex oslc-err-closuremul
+            oslc-err-format oslc-err-intoverflow
             oslc-err-noreturn oslc-err-paramdefault
             pointcloud pointcloud-fold
             raytype render-background render-bumptest render-cornell render-furnace-diffuse

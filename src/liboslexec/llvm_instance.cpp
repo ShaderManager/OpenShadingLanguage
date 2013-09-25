@@ -442,6 +442,8 @@ static const char *llvm_helper_function_table[] = {
     "osl_texture_set_interp_code", "xXi",
     "osl_texture_set_subimage", "xXi",
     "osl_texture_set_subimagename", "xXs",
+    "osl_texture_set_missingcolor_arena", "xXX",
+    "osl_texture_set_missingcolor_alpha", "xXif",
     "osl_texture", "iXsXffffffiXXX",
     "osl_texture_alpha", "iXsXffffffiXXXXXX",
     "osl_texture3d", "iXsXXXXXiXXXX",
@@ -612,6 +614,7 @@ RuntimeOptimizer::llvm_type_closure_component ()
     comp_types.push_back (llvm_type_int());     // id
     comp_types.push_back (llvm_type_int());     // size
     comp_types.push_back (llvm_type_int());     // nattrs
+    comp_types.push_back (llvm_type_triple());  // w
     comp_types.push_back (llvm_type_int());     // fake field for char mem[4]
 
     return m_llvm_type_closure_component = llvm_type_struct (comp_types, "ClosureComponent");

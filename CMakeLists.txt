@@ -2,8 +2,9 @@ project (OSL)
 
 # Release version of the library
 set (OSL_LIBRARY_VERSION_MAJOR 1)
-set (OSL_LIBRARY_VERSION_MINOR 4)
+set (OSL_LIBRARY_VERSION_MINOR 5)
 set (OSL_LIBRARY_VERSION_PATCH 0)
+set (OSL_LIBRARY_VERSION_RELEASE_TYPE "dev")   # "dev", "betaX", "RCY", ""
 
 # Version of the OSO file format and instruction set
 set (OSO_FILE_VERSION_MAJOR 1)
@@ -17,7 +18,7 @@ set (CMAKE_ALLOW_LOOSE_LOOP_CONSTRUCTS TRUE)
 message (STATUS "Project source dir = ${PROJECT_SOURCE_DIR}")
 message (STATUS "Project build dir = ${CMAKE_BINARY_DIR}")
 
-if (${PROJECT_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
+if ("${PROJECT_SOURCE_DIR}" STREQUAL "${CMAKE_BINARY_DIR}")
     message (FATAL_ERROR "Not allowed to run in-source build!")
 endif ()
 
@@ -33,6 +34,11 @@ if (CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
     add_definitions ("-DNDEBUG")
 endif ()
 
+option (CMAKE_USE_FOLDERS "Use the FOLDER target property to organize targets into folders." ON)
+mark_as_advanced (CMAKE_USE_FOLDERS)
+if (CMAKE_USE_FOLDERS)
+    set_property (GLOBAL PROPERTY USE_FOLDERS ON)
+endif ()
 
 # Figure out which compiler we're using
 if (CMAKE_COMPILER_IS_GNUCC)
@@ -41,12 +47,10 @@ if (CMAKE_COMPILER_IS_GNUCC)
                      OUTPUT_STRIP_TRAILING_WHITESPACE)
     message (STATUS "Using gcc ${GCC_VERSION} as the compiler")
 endif ()
-if (NOT CMAKE_COMPILER_IS_CLANG)
-    string (REGEX MATCH clang CMAKE_COMPILER_IS_CLANG ${CMAKE_CXX_COMPILER})
-    if (CMAKE_COMPILER_IS_CLANG)
-        set (CMAKE_COMPILER_IS_CLANG 1)
-        message (STATUS "Using clang as the compiler")
-    endif ()
+message (STATUS "CMAKE_CXX_COMPILER_ID is ${CMAKE_CXX_COMPILER_ID}")
+if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
+    set (CMAKE_COMPILER_IS_CLANG 1)
+    message (STATUS "Using clang as the compiler")
 endif ()
 
 ## turn on more detailed warnings and consider warnings as errors
@@ -116,10 +120,16 @@ if (CMAKE_COMPILER_IS_CLANG OR CMAKE_COMPILER_IS_GNUCC)
         # Linux: When linking against LLVM statically, we can also hide
         # all its symbols to prevent clashes if OSL is linked against an
         # app that also embeds LLVM.
-        set (VISIBILITY_MAP_COMMAND "-Wl,--version-script=${PROJECT_SOURCE_DIR}/liboslexec/liboslexec.map")
+        set (VISIBILITY_MAP_COMMAND "-Wl,--version-script=${PROJECT_SOURCE_DIR}/src/liboslexec/liboslexec.map")
     endif ()
 endif ()
 
+# Try to detect if this is an OSX distro new enough that the system library
+# is libc++, in which case we should force use of Boost Wave (because that
+# avoids a nonstandard g++ extension in the other code path).
+if (EXISTS "/usr/lib/libc++.dylib" OR OSL_USE_LIBCPP)
+    set (OSL_SYSTEM_HAS_LIBCPP ON)
+endif ()
 
 set (VERBOSE OFF CACHE BOOL "Print lots of messages while compiling")
 set (BUILDSTATIC OFF CACHE BOOL "Build static library instead of shared")
@@ -128,11 +138,14 @@ set (USE_EXTERNAL_PUGIXML OFF CACHE BOOL
      "Use an externally built shared library version of the pugixml library")
 set (PUGIXML_HOME "" CACHE STRING "Hint about where to find external PugiXML library")
 if (WIN32)
-    set (USE_BOOST_WAVE ON CACHE BOOL "Use Boost Wave as preprocessor")
     set (USE_LLVM_BITCODE OFF CACHE BOOL "Generate embedded LLVM bitcode")
 else ()
-    set (USE_BOOST_WAVE OFF CACHE BOOL "Use Boost Wave as preprocessor")
     set (USE_LLVM_BITCODE ON CACHE BOOL "Generated embedded LLVM bitcode")
+endif ()
+if (WIN32 OR OSL_SYSTEM_HAS_LIBCPP)
+    set (USE_BOOST_WAVE ON CACHE BOOL "Use Boost Wave as preprocessor")
+else ()
+    set (USE_BOOST_WAVE OFF CACHE BOOL "Use Boost Wave as preprocessor")
 endif ()
 set (USE_PARTIO ON CACHE BOOL "Use Partio if found")
 
@@ -148,10 +161,18 @@ if (EXTRA_CPP_DEFINITIONS)
     add_definitions ("${EXTRA_CPP_DEFINITIONS}")
 endif()
 
+if (USE_BOOST_WAVE)
+    add_definitions ("-DUSE_BOOST_WAVE")
+endif ()
+
+if (CMAKE_COMPILER_IS_CLANG AND OSL_USE_LIBCPP)
+    message (STATUS "Using libc++")
+    add_definitions ("-stdlib=libc++")
+endif ()
 
 set (CMAKE_MODULE_PATH
-     "${PROJECT_SOURCE_DIR}/cmake/modules"
-     "${PROJECT_SOURCE_DIR}/cmake")
+     "${PROJECT_SOURCE_DIR}/src/cmake/modules"
+     "${PROJECT_SOURCE_DIR}/src/cmake")
 
 include (util_macros)
 include (platform)
@@ -159,13 +180,10 @@ include (oiio)
 include (externalpackages)
 include (flexbison)
 include_directories (
-      ${CMAKE_SOURCE_DIR}/include
-      ${CMAKE_BINARY_DIR}/include
-      ${OPENIMAGEIO_INCLUDES}
+      "${CMAKE_SOURCE_DIR}/src/include"
+      "${CMAKE_BINARY_DIR}/include"
+      "${OPENIMAGEIO_INCLUDES}"
   )
-
-
-include_directories ("include")
 
 if (OSL_NAMESPACE)
     add_definitions ("-DOSL_NAMESPACE=${OSL_NAMESPACE}")
@@ -201,18 +219,18 @@ include (CTest)
 
 
 # Tell CMake to process the sub-directories
-add_subdirectory (liboslcomp)
-add_subdirectory (liboslquery)
-add_subdirectory (liboslexec)
+add_subdirectory (src/liboslcomp)
+add_subdirectory (src/liboslquery)
+add_subdirectory (src/liboslexec)
 
-add_subdirectory (oslc)
-add_subdirectory (shaders)
-add_subdirectory (oslinfo)
-add_subdirectory (testshade)
-add_subdirectory (testrender)
+add_subdirectory (src/oslc)
+add_subdirectory (src/shaders)
+add_subdirectory (src/oslinfo)
+add_subdirectory (src/testshade)
+add_subdirectory (src/testrender)
 
-add_subdirectory (include)
-add_subdirectory (doc)
+add_subdirectory (src/include)
+add_subdirectory (src/doc)
 
 
 
@@ -221,8 +239,8 @@ add_subdirectory (doc)
 
 # Make a copy of the testsuite into the build area
 if (DEFINED CMAKE_VERSION AND NOT CMAKE_VERSION VERSION_LESS 2.8)
-    file (COPY ${PROJECT_SOURCE_DIR}/../testsuite
-          DESTINATION ${CMAKE_BINARY_DIR})
+    file (COPY "${PROJECT_SOURCE_DIR}/testsuite"
+          DESTINATION "${CMAKE_BINARY_DIR}")
 endif()
 
 macro ( TESTSUITE )
@@ -238,7 +256,7 @@ macro ( TESTSUITE )
         if (_ats_LABEL MATCHES "broken")
             set (_testname "${_testname}-broken")
         endif ()
-        set (_runtest python ${CMAKE_BINARY_DIR}/testsuite/runtest.py
+        set (_runtest python "${CMAKE_BINARY_DIR}/testsuite/runtest.py"
                              ${_testdir} ${_extra_test_args})
         if (MSVC_IDE)
             set (_runtest ${_runtest} --devenv-config $<CONFIGURATION>
@@ -311,14 +329,15 @@ set (CPACK_PACKAGE_VERSION_PATCH ${OSL_LIBRARY_VERSION_PATCH})
 # the rest of the copyright notices say.
 set (CPACK_PACKAGE_VENDOR "Sony Pictures Imageworks")
 set (CPACK_PACKAGE_DESCRIPTION_SUMMARY "OpenShadingLanguage is...")
-set (CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/doc/Description.txt")
+set (CPACK_PACKAGE_DESCRIPTION_FILE "${PROJECT_SOURCE_DIR}/src/doc/Description.txt")
 set (CPACK_PACKAGE_FILE_NAME OSL-${OSL_LIBRARY_VERSION_MAJOR}.${OSL_LIBRARY_VERSION_MINOR}.${OSL_LIBRARY_VERSION_PATCH}-${platform})
-#set (CPACK_PACKAGE_INSTALL_DIRECTORY ${PROJECT_SOURCE_DIR}/..)
-exec_program ("cmake -E copy ${PROJECT_SOURCE_DIR}/../LICENSE ${CMAKE_BINARY_DIR}/License.txt")
+file (COPY "${PROJECT_SOURCE_DIR}/LICENSE" DESTINATION "${CMAKE_BINARY_DIR}")
+file (RENAME "${CMAKE_BINARY_DIR}/LICENSE" "${CMAKE_BINARY_DIR}/License.txt")
 set (CPACK_RESOURCE_FILE_LICENSE "${CMAKE_BINARY_DIR}/License.txt")
-exec_program ("cmake -E copy ${PROJECT_SOURCE_DIR}/../README.md ${CMAKE_BINARY_DIR}/Readme.txt")
+file (COPY "${PROJECT_SOURCE_DIR}/README.md" DESTINATION "${CMAKE_BINARY_DIR}")
+file (RENAME "${CMAKE_BINARY_DIR}/README.md" "${CMAKE_BINARY_DIR}/Readme.txt")
 set (CPACK_RESOURCE_FILE_README "${CMAKE_BINARY_DIR}/Readme.txt")
-set (CPACK_RESOURCE_FILE_WELCOME "${PROJECT_SOURCE_DIR}/doc/Welcome.txt")
+set (CPACK_RESOURCE_FILE_WELCOME "${PROJECT_SOURCE_DIR}/src/doc/Welcome.txt")
 #set (CPACK_PACKAGE_EXECUTABLES I'm not sure what this is for)
 #set (CPACK_STRIP_FILES Do we need this?)
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")

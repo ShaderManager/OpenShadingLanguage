@@ -14,17 +14,16 @@
 %\usepackage{apalike}
 \usepackage{pslatex}
 \usepackage{techref}
-\usepackage{epsfig}
+%\usepackage{epsfig}
 \usepackage{verbatim}
 \usepackage{moreverb}
 \usepackage{graphicx}
 \usepackage{xspace}
-\usepackage{multicol}
-\usepackage{color}
+%\usepackage{multicol}
+%\usepackage{color}
 \usepackage{html}
-\usepackage{version}
+%\usepackage{version}
 \usepackage{makeidx}
-%\usepackage{showidx}
 \usepackage[chapter]{algorithm}
 \floatname{algorithm}{Listing}
 
@@ -44,7 +43,7 @@
 
 \def\langname{Open Shading Language\xspace}
 \def\product{{\sffamily Open Shading Language}\xspace}
-\def\versionnumber{1.4}
+\def\versionnumber{1.5}
 \def\productver{\product\ {\sffamily \versionnumber}\xspace}
 
 
@@ -62,8 +61,8 @@ Language Specification
 Editor: Larry Gritz \\
 \emph{lg@imageworks.com}
 }
-\date{{\large Date: 30 Apr, 2013 \\
-~ (with corrections, 19 Jun 2013)
+\date{{\large Date: 12 Nov, 2013 \\
+~ (with corrections, 15 Nov 2013)
 }
 \bigskip
 \bigskip
@@ -4157,13 +4156,27 @@ one of: \qkw{Plain Texture}, \qkw{Shadow}, \qkw{Environment},
 specifically distinguishes between the different types of shadows and
 environment maps.  \\[0.75ex]
 
-\qkw{viewingmatrix} & \matrix & (Shadow maps only) The matrix that
-transforms points from \commonspace to the \cameraspace from which the
-texture was created. \\[0.75ex]
+\qkw{datawindow} & {\cf int[]} &
+Returns the pixel data window of the image.  The argument is an {\cf int}
+array either of length 4 or 6, in which will be placed the (xmin, ymin,
+xmax, ymax) or (xmin, ymin, zmin, xmax, ymax, zmax), respectively.
+(N.B. the $z$ values may be useful for 3D/volumetric images; for 2D images
+they will be 0). \\[0.75ex]
 
-{\small \qkw{projectionmatrix}} & \matrix & (Shadow maps only) The
-matrix that transforms points from \commonspace to a 2D coordinate
-system where $x$ and $y$ range from -1 to 1.  \\[0.75ex]
+\qkw{displaywindow} & {\cf int[]} &
+Returns the display (a.k.a.\ full) window of the image.  The argument is an {\cf int}
+array either of length 4 or 6, in which will be placed the (xmin, ymin,
+xmax, ymax) or (xmin, ymin, zmin, xmax, ymax, zmax), respectively.
+(N.B. the $z$ values may be useful for 3D/volumetric images; for 2D images
+they will be 0). \\[0.75ex]
+
+%\qkw{viewingmatrix} & \matrix & (Shadow maps only) The matrix that
+%transforms points from \commonspace to the \cameraspace from which the
+%texture was created. \\[0.75ex]
+%
+%{\small \qkw{projectionmatrix}} & \matrix & (Shadow maps only) The
+%matrix that transforms points from \commonspace to a 2D coordinate
+%system where $x$ and $y$ range from -1 to 1.  \\[0.75ex]
 
 \emph{anything else} & \emph{any} & Searches for matching name and
 type in the metadata or other header information of the texture file.
@@ -4175,17 +4188,20 @@ type in the metadata or other header information of the texture file.
 
 \newpage
 \apiitem{int {\ce pointcloud_search} (string ptcname, point pos, float radius,\\
-\bigspc\bigspc      int maxpoints, int sort,
+\bigspc\bigspc      int maxpoints, [int sort,]
                        string attr, Type data[],\\
 \bigspc\bigspc         ..., string attrN, Type dataN[] )}
 \indexapi{pointcloud_search}
 
-Search the named point cloud for points within {\cf radius} of {\cf pos},
+Search the named point cloud for the {\cf maxpoints} closest points to
+{\cf pos} within the given {\cf radius},
 returning the values of any named attributes of those points in the the
-given {\cf data} arrays.  If {\cf sort} is nonzero, The ordering of the points
-found will be sorted by distance from {\cf pos}, from closest to farthest; if
-{\cf sort} is 0, the results are not guaranteed to be sorted (searching may
-be faster for some implementations when sorted results are not
+given {\cf data} arrays.  If the optional {\cf sort} parameter is present
+and is nonzero, the ordering of the points
+found will be sorted by distance from {\cf pos}, from closest to farthest;
+otherwise, the results are guaranteed to be the {\cf maxpoints} closest
+to {\cf pos}, but not necessarily softed by distance (this may be
+faster for some implementations than when sorted results are
 required).  The return value is the number of points returned, ranging
 from 0 (nothing found in the neighborhood) to the lesser of {\cf maxpoints}
 and the actual lengths of the arrays (the arrays will never be written

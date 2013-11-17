@@ -125,7 +125,7 @@ TARGET_LINK_LIBRARIES ( oslexec
                         ${OPENIMAGEIO_LIBRARY} ${PUGIXML_LIBRARIES}
                         ${PARTIO_LIBRARIES} ${ZLIB_LIBRARIES}
                         ${Boost_LIBRARIES} ${CMAKE_DL_LIBS}
-                        ${LLVM_LIBRARY} ${EXTRA_OSLEXEC_LIBRARIES}
+                        ${LLVM_LIBRARY} ${EXTRA_OSLEXEC_LIBRARIES} )
 ADD_DEPENDENCIES (oslexec "${CMAKE_CURRENT_SOURCE_DIR}/liboslcexec.map")
 LINK_ILMBASE ( oslexec )
 

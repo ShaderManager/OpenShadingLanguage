@@ -1162,6 +1162,8 @@ public:
     virtual void deallocateFunctionBody(void *Body) {
         // DON'T DEALLOCATE mm->deallocateFunctionBody (Body);
     }
+
+#if OSL_LLVM_VERSION < 34 // r181354: Remove exception handling support from the old JIT.
     virtual uint8_t* startExceptionTable(const llvm::Function* F,
                                          uintptr_t &ActualSize) {
         return mm->startExceptionTable (F, ActualSize);
@@ -1170,6 +1172,8 @@ public:
                                    uint8_t *TableEnd, uint8_t* FrameRegister) {
         mm->endExceptionTable (F, TableStart, TableEnd, FrameRegister);
     }
+#endif
+
     virtual void deallocateExceptionTable(void *ET) {
         // DON'T DEALLOCATE mm->deallocateExceptionTable(ET);
     }
@@ -1193,18 +1197,39 @@ public:
                                             bool AbortOnFailure = true) {
         return mm->getPointerToNamedFunction (Name, AbortOnFailure);
     }
-    virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
-                                         unsigned SectionID) {
-        return mm->allocateCodeSection(Size, Alignment, SectionID);
-    }
-#if OSL_LLVM_VERSION >= 33
+
+#if OSL_LLVM_VERSION >= 34
+	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
+		unsigned SectionID, llvm::StringRef SectionName) {
+			return mm->allocateCodeSection(Size, Alignment, SectionID, SectionName);
+	}
+#else
+	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
+		unsigned SectionID) {
+			return mm->allocateCodeSection(Size, Alignment, SectionID);
+	}
+#endif
+    
+#if OSL_LLVM_VERSION >= 34
+	virtual uint8_t* allocateDataSection(uintptr_t Size, unsigned Alignment, unsigned SectionID,
+		llvm::StringRef SectionName, bool IsReadOnly)
+	{
+		return mm->allocateDataSection(Size, Alignment, SectionID, SectionName, IsReadOnly);
+	}
+
+	virtual bool finalizeMemory(std::string *ErrMsg)
+	{
+		return mm->finalizeMemory(ErrMsg);
+	}
+#elif OSL_LLVM_VERSION == 33
     virtual uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment,
-                                         unsigned SectionID, bool IsReadOnly) {
+                                         unsigned SectionID, bool IsReadOnly) 
+	{
         return mm->allocateDataSection(Size, Alignment, SectionID, IsReadOnly);
     }
     virtual bool applyPermissions(std::string *ErrMsg = 0) {
         return mm->applyPermissions(ErrMsg);
-    }
+    }	
 #else
     virtual uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment,
                                          unsigned SectionID) {
@@ -1305,8 +1330,11 @@ ShadingSystemImpl::SetupLLVM ()
         return;
     // Some global LLVM initialization for the first thread that
     // gets here.
-    info ("Setting up LLVM");
-    llvm::DisablePrettyStackTrace = true;
+    info ("Setting up LLVM");	
+
+	// Removed in the LLVM trunk r193971. Use llvm::llvm::EnablePrettyStackTrace() instead
+    //llvm::DisablePrettyStackTrace = true;	
+
     llvm::llvm_start_multithreaded ();  // enable it to be thread-safe
     llvm::InitializeNativeTarget();
     done = true;

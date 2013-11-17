@@ -33,13 +33,8 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "OpenImageIO/dassert.h"
 
-#if defined(_MSC_VER) && _MSC_VER > 1600
-#include <memory>
-using namespace std;
-#else
-#include <boost/tr1/memory.hpp>
-using std::tr1::shared_ptr;
-#endif
+#include <boost/shared_ptr.hpp>
+using boost::shared_ptr;
 
 OSL_NAMESPACE_ENTER
 namespace pvt {

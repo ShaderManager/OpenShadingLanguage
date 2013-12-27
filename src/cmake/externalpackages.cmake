@@ -37,7 +37,6 @@ endif ()
 find_package (IlmBase REQUIRED)
 
 include_directories ("${ILMBASE_INCLUDE_DIR}")
-include_directories ("${ILMBASE_INCLUDE_DIR}/OpenEXR")
 
 macro (LINK_ILMBASE target)
     target_link_libraries (${target} ${ILMBASE_LIBRARIES})
@@ -196,10 +195,11 @@ if ((LLVM_LIBRARY OR LLVM_STATIC) AND LLVM_INCLUDES AND LLVM_DIRECTORY AND LLVM_
   # ensure include directory is added (in case of non-standard locations
   include_directories (BEFORE "${LLVM_INCLUDES}")
   link_directories ("${LLVM_LIB_DIR}")
-  # Extract any wayward dots or "svn" suffixes from the version to yield
-  # an integer version number we can use to make compilation decisions.
-  string (REGEX REPLACE "\\." "" OSL_LLVM_VERSION ${LLVM_VERSION})
-  string (REGEX REPLACE "svn" "" OSL_LLVM_VERSION ${OSL_LLVM_VERSION})
+  if (NOT OSL_LLVM_VERSION)
+      # Extract and concatenate major & minor, remove wayward patches,
+      # dots, and "svn" or other suffixes.
+      string (REGEX REPLACE "([0-9]+)\\.([0-9]+).*" "\\1\\2" OSL_LLVM_VERSION ${LLVM_VERSION})
+  endif ()
   add_definitions ("-DOSL_LLVM_VERSION=${OSL_LLVM_VERSION}")
   if (LLVM_STATIC)
     # if static LLVM libraries were requested, use llvm-config to generate

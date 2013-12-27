@@ -3,7 +3,7 @@ project (OSL)
 # Release version of the library
 set (OSL_LIBRARY_VERSION_MAJOR 1)
 set (OSL_LIBRARY_VERSION_MINOR 5)
-set (OSL_LIBRARY_VERSION_PATCH 0)
+set (OSL_LIBRARY_VERSION_PATCH 2)
 set (OSL_LIBRARY_VERSION_RELEASE_TYPE "dev")   # "dev", "betaX", "RCY", ""
 
 # Version of the OSO file format and instruction set
@@ -47,10 +47,18 @@ if (CMAKE_COMPILER_IS_GNUCC)
                      OUTPUT_STRIP_TRAILING_WHITESPACE)
     message (STATUS "Using gcc ${GCC_VERSION} as the compiler")
 endif ()
+message (STATUS "CMAKE_CXX_COMPILER is ${CMAKE_CXX_COMPILER}")
 message (STATUS "CMAKE_CXX_COMPILER_ID is ${CMAKE_CXX_COMPILER_ID}")
 if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
     set (CMAKE_COMPILER_IS_CLANG 1)
     message (STATUS "Using clang as the compiler")
+endif ()
+# Second try: for earlier versions of CMake, the CMAKE_CXX_COMPILER_ID
+# appears to be unreliable and may say "GNU" despite using clang, so
+# directly match against the compiler name.
+if ("${CMAKE_CXX_COMPILER}" MATCHES ".*clang.*")
+    set (CMAKE_COMPILER_IS_CLANG 1)
+    message (STATUS "The compiler seems to be clang")
 endif ()
 
 ## turn on more detailed warnings and consider warnings as errors
@@ -303,7 +311,9 @@ TESTSUITE ( aastep arithmetic array array-derivs array-range
             oslc-err-format oslc-err-intoverflow
             oslc-err-noreturn oslc-err-paramdefault
             pointcloud pointcloud-fold
-            raytype render-background render-bumptest render-cornell render-furnace-diffuse
+            raytype reparam
+            render-background render-bumptest
+            render-cornell render-furnace-diffuse
             render-microfacet render-oren-nayar render-veachmis render-ward
             shortcircuit spline splineinverse string 
             struct struct-array struct-array-mixture

@@ -460,7 +460,7 @@ inline Dual2<T> pow (const Dual2<T> &u, const Dual2<T> &v)
     if (u.val() == T(0))
         return Dual2<T> ( T(0) );    // 0^v == 0
     if (u.val() < T(0)) {
-        if (truncf(v.val()) != v.val())
+        if (OIIO::truncf(v.val()) != v.val())
             return T(0);  // return 0 rather than imaginary
         // The function is not continuous in v, so assume v's derivs zero.
         // This gets rid of the log(u), which makes life easier.
@@ -630,7 +630,7 @@ template<class T>
 inline Dual2<T> expm1 (const Dual2<T> &a)
 {
    float expm1a, expa;
-   expm1a = expm1f (a.val());
+   expm1a = OIIO::expm1f (a.val());
    expa   = std::exp (a.val());
 
    return Dual2<T> (expm1a, expa * a.dx(), expa * a.dy());
@@ -641,7 +641,7 @@ template<class T>
 inline Dual2<T> erf (const Dual2<T> &a)
 {
    T erfa, derfadx;
-   erfa    = erff (a.val()); // float version!
+   erfa    = OIIO::erff (a.val()); // float version!
    derfadx = T(2)*std::exp(-a.val()*a.val())/std::sqrt(T(M_PI));
 
    return Dual2<T> (erfa, derfadx * a.dx(), derfadx * a.dy());
@@ -652,7 +652,7 @@ template<class T>
 inline Dual2<T> erfc (const Dual2<T> &a)
 {
    T erfca, derfcadx;
-   erfca    = erfcf (a.val()); // float version!
+   erfca    = OIIO::erfcf (a.val()); // float version!
    derfcadx = -T(2)*std::exp(-a.val()*a.val())/std::sqrt(T(M_PI));
 
    return Dual2<T> (erfca, derfcadx * a.dx(), derfcadx * a.dy());

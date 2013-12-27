@@ -160,7 +160,7 @@ public:
         const double c1 = 3.74183e-16; // 2*pi*h*c^2, W*m^2
         const double c2 = 1.4388e-2;   // h*c/k, m*K
                                        // h is Planck's const, k is Boltzmann's
-        return float((c1 * std::pow(wlm,-5.0)) / ::expm1(c2 / (wlm * m_temp)));
+        return float((c1 * std::pow(wlm,-5.0)) / OIIO::expm1(c2 / (wlm * m_temp)));
     }
 private:
     double m_temp;

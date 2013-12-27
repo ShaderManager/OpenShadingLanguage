@@ -206,7 +206,7 @@ if ((LLVM_LIBRARY OR LLVM_STATIC) AND LLVM_INCLUDES AND LLVM_DIRECTORY AND LLVM_
     # the list of what libraries we need, and substitute that in the right
     # way for LLVM_LIBRARY.    
     if (NOT LLVM_CONFIG)
-			llvm_map_components_to_libraries(LLVM_LIBRARY jit interpreter native scalaropts ipo vectorize asmparser bitwriter )
+			llvm_map_components_to_libraries(LLVM_LIBRARY jit interpreter native scalaropts ipo vectorize asmparser bitwriter bitreader )
 		else ()
 			execute_process (COMMAND ${LLVM_CONFIG} --libfiles
 											 OUTPUT_VARIABLE LLVM_LIBRARY

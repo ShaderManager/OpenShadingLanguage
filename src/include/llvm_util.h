@@ -42,13 +42,11 @@ namespace llvm {
   class ConstantFolder;
   class ExecutionEngine;
   class Function;
-  class FunctionPassManager;
   class FunctionType;
   class JITMemoryManager;
   class Linker;
   class LLVMContext;
   class Module;
-  class PassManager;
   class PointerType;
   class Type;
   class Value;
@@ -56,7 +54,25 @@ namespace llvm {
   template<bool preserveNames> class IRBuilderDefaultInserter;
 }
 
+#if OSL_LLVM_VERSION >= 34
+namespace llvm
+{
+	namespace legacy
+	{
+		class FunctionPassManager;
+		class PassManager;
+	}
 
+	using legacy::FunctionPassManager;
+	using legacy::PassManager;
+}
+#else
+namespace llvm
+{
+	class FunctionPassManager;
+	class PassManager;
+}
+#endif
 
 OSL_NAMESPACE_ENTER
 

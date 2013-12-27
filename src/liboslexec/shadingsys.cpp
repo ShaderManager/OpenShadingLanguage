@@ -34,8 +34,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
 
-#include "llvm_headers.h"
-
 #include "oslexec_pvt.h"
 #include "genclosure.h"
 #include "backendllvm.h"

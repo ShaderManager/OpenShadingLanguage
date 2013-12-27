@@ -175,6 +175,8 @@ public:
     virtual void deallocateFunctionBody(void *Body) {
         // DON'T DEALLOCATE mm->deallocateFunctionBody (Body);
     }
+
+#if OSL_LLVM_VERSION < 34 // r181354: Remove exception handling support from the old JIT.
     virtual uint8_t* startExceptionTable(const llvm::Function* F,
                                          uintptr_t &ActualSize) {
         return mm->startExceptionTable (F, ActualSize);
@@ -186,6 +188,8 @@ public:
     virtual void deallocateExceptionTable(void *ET) {
         // DON'T DEALLOCATE mm->deallocateExceptionTable(ET);
     }
+#endif
+
     virtual bool CheckInvariants(std::string &s) {
         return mm->CheckInvariants(s);
     }
@@ -206,11 +210,31 @@ public:
                                             bool AbortOnFailure = true) {
         return mm->getPointerToNamedFunction (Name, AbortOnFailure);
     }
-    virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
-                                         unsigned SectionID) {
-        return mm->allocateCodeSection(Size, Alignment, SectionID);
-    }
-#if OSL_LLVM_VERSION >= 33
+
+#if OSL_LLVM_VERSION >= 34
+	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
+		unsigned SectionID, llvm::StringRef SectionName) {
+		return mm->allocateCodeSection(Size, Alignment, SectionID, SectionName);
+	}
+#else
+	virtual uint8_t *allocateCodeSection(uintptr_t Size, unsigned Alignment,
+		unsigned SectionID) {
+		return mm->allocateCodeSection(Size, Alignment, SectionID);
+	}
+#endif
+
+#if OSL_LLVM_VERSION >= 34
+	virtual uint8_t* allocateDataSection(uintptr_t Size, unsigned Alignment, unsigned SectionID,
+		llvm::StringRef SectionName, bool IsReadOnly)
+	{
+		return mm->allocateDataSection(Size, Alignment, SectionID, SectionName, IsReadOnly);
+	}
+
+	virtual bool finalizeMemory(std::string *ErrMsg)
+	{
+		return mm->finalizeMemory(ErrMsg);
+	}
+#elif OSL_LLVM_VERSION == 33
     virtual uint8_t *allocateDataSection(uintptr_t Size, unsigned Alignment,
                                          unsigned SectionID, bool IsReadOnly) {
         return mm->allocateDataSection(Size, Alignment, SectionID, IsReadOnly);
@@ -307,7 +331,9 @@ LLVM_Util::SetupLLVM ()
     // Some global LLVM initialization for the first thread that
     // gets here.
     // info ("Setting up LLVM");
+#if OSL_LLVM_VERSION <= 33
     llvm::DisablePrettyStackTrace = true;
+#endif
     llvm::llvm_start_multithreaded ();  // enable it to be thread-safe
     llvm::InitializeNativeTarget();
     setup_done = true;
